@@ -4,7 +4,16 @@ A lightweight, developer-focused database management tool, built with Tauri and 
 
 > 💡 **Origin Story:** This project was born from a **vibe coding** session — an experiment in fluid, agent-assisted development to build a functional tool from scratch in record time.
 
-![Screenshot](https://via.placeholder.com/800x450?text=debba.sql+Screenshot)
+## Gallery
+
+<div align="center">
+  <img src="screenshots/screenshot-1.png" width="45%" alt="Connection Manager" />
+  <img src="screenshots/screenshot-2.png" width="45%" alt="SQL Editor and Data Grid" />
+</div>
+<div align="center">
+  <img src="screenshots/screenshot-3.png" width="45%" alt="Table Wizard" />
+  <img src="screenshots/screenshot-4.png" width="45%" alt="New Connection" />
+</div>
 
 ## Features
 
