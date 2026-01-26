@@ -10,6 +10,7 @@ use tauri::{AppHandle, Manager, Runtime};
 use uuid::Uuid;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime, DateTime, Utc};
 use crate::ssh_tunnel::{SshTunnel, get_tunnels};
+use urlencoding::encode;
 
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone)]
 pub struct ConnectionParams {
@@ -68,12 +69,9 @@ fn resolve_connection_params(params: &ConnectionParams) -> Result<ConnectionPara
 
         let map_key = format!("{}@{}:{}:{}->{}", ssh_user, ssh_host, ssh_port, remote_host, remote_port);
         
-        // Check existing
         {
             let tunnels = get_tunnels().lock().unwrap();
             if let Some(tunnel) = tunnels.get(&map_key) {
-                // Should check if alive? 
-                // For MVP assume alive.
                 let mut new_params = params.clone();
                 new_params.host = Some("127.0.0.1".to_string());
                 new_params.port = Some(tunnel.local_port);
@@ -81,7 +79,6 @@ fn resolve_connection_params(params: &ConnectionParams) -> Result<ConnectionPara
             }
         }
         
-        // New Tunnel
         let tunnel = SshTunnel::new(
             ssh_host, ssh_port, ssh_user, 
             params.ssh_password.as_deref(), 
@@ -215,17 +212,23 @@ pub async fn get_connections<R: Runtime>(
 #[tauri::command]
 pub async fn test_connection(params: ConnectionParams) -> Result<String, String> {
     let resolved_params = resolve_connection_params(&params)?;
+    println!("[Test Connection] Resolved Params: Host={:?}, Port={:?}", resolved_params.host, resolved_params.port);
+    
+    let user = encode(resolved_params.username.as_deref().unwrap_or_default());
+    let pass = encode(resolved_params.password.as_deref().unwrap_or_default());
+    let host = resolved_params.host.as_deref().unwrap_or("localhost");
+
     let url = match resolved_params.driver.as_str() {
         "sqlite" => format!("sqlite://{}", resolved_params.database),
         "postgres" => format!("postgres://{}:{}@{}:{}/{}", 
-            resolved_params.username.clone().unwrap_or_default(), resolved_params.password.clone().unwrap_or_default(),
-            resolved_params.host.clone().unwrap_or("localhost".into()), resolved_params.port.unwrap_or(5432), resolved_params.database),
+            user, pass, host, resolved_params.port.unwrap_or(5432), resolved_params.database),
         "mysql" => format!("mysql://{}:{}@{}:{}/{}", 
-            resolved_params.username.clone().unwrap_or_default(), resolved_params.password.clone().unwrap_or_default(),
-            resolved_params.host.clone().unwrap_or("localhost".into()), resolved_params.port.unwrap_or(3306), resolved_params.database),
+            user, pass, host, resolved_params.port.unwrap_or(3306), resolved_params.database),
         _ => return Err("Unsupported driver".into()),
     };
     
+    println!("[Test Connection] URL: {}", url);
+
     let options = AnyConnectOptions::from_str(&url).map_err(|e| e.to_string())?;
     let mut conn = AnyConnection::connect_with(&options).await.map_err(|e| e.to_string())?;
     conn.ping().await.map_err(|e| e.to_string())?;
@@ -318,11 +321,29 @@ pub async fn insert_record<R: Runtime>(
     }
 }
 
+#[tauri::command]
+pub async fn execute_query<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    query: String,
+) -> Result<QueryResult, String> {
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let params = resolve_connection_params(&saved_conn.params)?;
+    match saved_conn.params.driver.as_str() {
+        "mysql" => execute_mysql(&params, &query).await,
+        "postgres" => execute_postgres(&params, &query).await,
+        "sqlite" => execute_sqlite(&params, &query).await,
+        _ => Err("Unsupported driver".into())
+    }
+}
+
 // --- Introspection Helpers ---
 
 async fn get_tables_mysql(params: &ConnectionParams) -> Result<Vec<TableInfo>, String> {
+    let user = encode(params.username.as_deref().unwrap_or_default());
+    let pass = encode(params.password.as_deref().unwrap_or_default());
     let url = format!("mysql://{}:{}@{}:{}/{}", 
-        params.username.as_deref().unwrap_or_default(), params.password.as_deref().unwrap_or_default(),
+        user, pass,
         params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(3306), params.database);
     let mut conn = sqlx::mysql::MySqlConnection::connect(&url).await.map_err(|e| e.to_string())?;
     let rows = sqlx::query("SELECT table_name as name FROM information_schema.tables WHERE table_schema = DATABASE()")
@@ -331,8 +352,10 @@ async fn get_tables_mysql(params: &ConnectionParams) -> Result<Vec<TableInfo>, S
 }
 
 async fn get_tables_postgres(params: &ConnectionParams) -> Result<Vec<TableInfo>, String> {
+    let user = encode(params.username.as_deref().unwrap_or_default());
+    let pass = encode(params.password.as_deref().unwrap_or_default());
     let url = format!("postgres://{}:{}@{}:{}/{}", 
-        params.username.as_deref().unwrap_or_default(), params.password.as_deref().unwrap_or_default(),
+        user, pass,
         params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(5432), params.database);
     let mut conn = sqlx::postgres::PgConnection::connect(&url).await.map_err(|e| e.to_string())?;
     let rows = sqlx::query("SELECT table_name as name FROM information_schema.tables WHERE table_schema = 'public'")
@@ -349,8 +372,10 @@ async fn get_tables_sqlite(params: &ConnectionParams) -> Result<Vec<TableInfo>, 
 }
 
 async fn get_columns_mysql(params: &ConnectionParams, table_name: &str) -> Result<Vec<TableColumn>, String> {
+    let user = encode(params.username.as_deref().unwrap_or_default());
+    let pass = encode(params.password.as_deref().unwrap_or_default());
     let url = format!("mysql://{}:{}@{}:{}/{}", 
-        params.username.as_deref().unwrap_or_default(), params.password.as_deref().unwrap_or_default(),
+        user, pass,
         params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(3306), params.database);
     let mut conn = sqlx::mysql::MySqlConnection::connect(&url).await.map_err(|e| e.to_string())?;
     
@@ -380,8 +405,10 @@ async fn get_columns_mysql(params: &ConnectionParams, table_name: &str) -> Resul
 }
 
 async fn get_columns_postgres(params: &ConnectionParams, table_name: &str) -> Result<Vec<TableColumn>, String> {
+    let user = encode(params.username.as_deref().unwrap_or_default());
+    let pass = encode(params.password.as_deref().unwrap_or_default());
     let url = format!("postgres://{}:{}@{}:{}/{}", 
-        params.username.as_deref().unwrap_or_default(), params.password.as_deref().unwrap_or_default(),
+        user, pass,
         params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(5432), params.database);
     let mut conn = sqlx::postgres::PgConnection::connect(&url).await.map_err(|e| e.to_string())?;
     
@@ -457,8 +484,10 @@ async fn get_columns_sqlite(params: &ConnectionParams, table_name: &str) -> Resu
 // --- Modification Helpers ---
 
 async fn delete_record_mysql(params: &ConnectionParams, table: &str, pk_col: &str, pk_val: serde_json::Value) -> Result<u64, String> {
+    let user = encode(params.username.as_deref().unwrap_or_default());
+    let pass = encode(params.password.as_deref().unwrap_or_default());
     let url = format!("mysql://{}:{}@{}:{}/{}", 
-        params.username.as_deref().unwrap_or_default(), params.password.as_deref().unwrap_or_default(),
+        user, pass,
         params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(3306), params.database);
     let mut conn = sqlx::mysql::MySqlConnection::connect(&url).await.map_err(|e| e.to_string())?;
     
@@ -478,8 +507,10 @@ async fn delete_record_mysql(params: &ConnectionParams, table: &str, pk_col: &st
 }
 
 async fn delete_record_postgres(params: &ConnectionParams, table: &str, pk_col: &str, pk_val: serde_json::Value) -> Result<u64, String> {
+    let user = encode(params.username.as_deref().unwrap_or_default());
+    let pass = encode(params.password.as_deref().unwrap_or_default());
     let url = format!("postgres://{}:{}@{}:{}/{}", 
-        params.username.as_deref().unwrap_or_default(), params.password.as_deref().unwrap_or_default(),
+        user, pass,
         params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(5432), params.database);
     let mut conn = sqlx::postgres::PgConnection::connect(&url).await.map_err(|e| e.to_string())?;
     
@@ -516,8 +547,10 @@ async fn delete_record_sqlite(params: &ConnectionParams, table: &str, pk_col: &s
 }
 
 async fn update_record_mysql(params: &ConnectionParams, table: &str, pk_col: &str, pk_val: serde_json::Value, col_name: &str, new_val: serde_json::Value) -> Result<u64, String> {
+    let user = encode(params.username.as_deref().unwrap_or_default());
+    let pass = encode(params.password.as_deref().unwrap_or_default());
     let url = format!("mysql://{}:{}@{}:{}/{}", 
-        params.username.as_deref().unwrap_or_default(), params.password.as_deref().unwrap_or_default(),
+        user, pass,
         params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(3306), params.database);
     let mut conn = sqlx::mysql::MySqlConnection::connect(&url).await.map_err(|e| e.to_string())?;
     
@@ -545,8 +578,10 @@ async fn update_record_mysql(params: &ConnectionParams, table: &str, pk_col: &st
 }
 
 async fn update_record_postgres(params: &ConnectionParams, table: &str, pk_col: &str, pk_val: serde_json::Value, col_name: &str, new_val: serde_json::Value) -> Result<u64, String> {
+    let user = encode(params.username.as_deref().unwrap_or_default());
+    let pass = encode(params.password.as_deref().unwrap_or_default());
     let url = format!("postgres://{}:{}@{}:{}/{}", 
-        params.username.as_deref().unwrap_or_default(), params.password.as_deref().unwrap_or_default(),
+        user, pass,
         params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(5432), params.database);
     let mut conn = sqlx::postgres::PgConnection::connect(&url).await.map_err(|e| e.to_string())?;
     
@@ -603,8 +638,10 @@ async fn update_record_sqlite(params: &ConnectionParams, table: &str, pk_col: &s
 // --- Insert Record Helpers ---
 
 async fn insert_record_mysql(params: &ConnectionParams, table: &str, data: std::collections::HashMap<String, serde_json::Value>) -> Result<u64, String> {
+    let user = encode(params.username.as_deref().unwrap_or_default());
+    let pass = encode(params.password.as_deref().unwrap_or_default());
     let url = format!("mysql://{}:{}@{}:{}/{}", 
-        params.username.as_deref().unwrap_or_default(), params.password.as_deref().unwrap_or_default(),
+        user, pass,
         params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(3306), params.database);
     let mut conn = sqlx::mysql::MySqlConnection::connect(&url).await.map_err(|e| e.to_string())?;
     
@@ -638,8 +675,10 @@ async fn insert_record_mysql(params: &ConnectionParams, table: &str, data: std::
 }
 
 async fn insert_record_postgres(params: &ConnectionParams, table: &str, data: std::collections::HashMap<String, serde_json::Value>) -> Result<u64, String> {
+    let user = encode(params.username.as_deref().unwrap_or_default());
+    let pass = encode(params.password.as_deref().unwrap_or_default());
     let url = format!("postgres://{}:{}@{}:{}/{}", 
-        params.username.as_deref().unwrap_or_default(), params.password.as_deref().unwrap_or_default(),
+        user, pass,
         params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(5432), params.database);
     let mut conn = sqlx::postgres::PgConnection::connect(&url).await.map_err(|e| e.to_string())?;
     
@@ -708,8 +747,10 @@ async fn insert_record_sqlite(params: &ConnectionParams, table: &str, data: std:
 // --- Specific Executors ---
 
 async fn execute_mysql(params: &ConnectionParams, query: &str) -> Result<QueryResult, String> {
+    let user = encode(params.username.as_deref().unwrap_or_default());
+    let pass = encode(params.password.as_deref().unwrap_or_default());
     let url = format!("mysql://{}:{}@{}:{}/{}", 
-        params.username.as_deref().unwrap_or_default(), params.password.as_deref().unwrap_or_default(),
+        user, pass,
         params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(3306), params.database);
     
     let mut conn = sqlx::mysql::MySqlConnection::connect(&url).await.map_err(|e| e.to_string())?;
@@ -719,8 +760,10 @@ async fn execute_mysql(params: &ConnectionParams, query: &str) -> Result<QueryRe
 }
 
 async fn execute_postgres(params: &ConnectionParams, query: &str) -> Result<QueryResult, String> {
+    let user = encode(params.username.as_deref().unwrap_or_default());
+    let pass = encode(params.password.as_deref().unwrap_or_default());
     let url = format!("postgres://{}:{}@{}:{}/{}", 
-        params.username.as_deref().unwrap_or_default(), params.password.as_deref().unwrap_or_default(),
+        user, pass,
         params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(5432), params.database);
     
     let mut conn = sqlx::postgres::PgConnection::connect(&url).await.map_err(|e| e.to_string())?;
@@ -810,20 +853,4 @@ fn map_rows_sqlite(rows: Vec<SqliteRow>) -> Result<QueryResult, String> {
         json_rows.push(json_row);
     }
     Ok(QueryResult { columns, rows: json_rows, affected_rows: 0 })
-}
-
-#[tauri::command]
-pub async fn execute_query<R: Runtime>(
-    app: AppHandle<R>,
-    connection_id: String,
-    query: String,
-) -> Result<QueryResult, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let params = resolve_connection_params(&saved_conn.params)?;
-    match saved_conn.params.driver.as_str() {
-        "mysql" => execute_mysql(&params, &query).await,
-        "postgres" => execute_postgres(&params, &query).await,
-        "sqlite" => execute_sqlite(&params, &query).await,
-        _ => Err("Unsupported driver".into())
-    }
 }

@@ -2,6 +2,7 @@ use ssh2::Session;
 use std::collections::HashMap;
 use std::io::{ErrorKind, Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::process::{Child, Command, Stdio};
 use std::sync::OnceLock;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -11,9 +12,15 @@ use std::thread;
 use std::time::Duration;
 
 #[derive(Clone)]
+enum TunnelBackend {
+    LibSsh2(Arc<AtomicBool>),
+    SystemSsh(Arc<Mutex<Child>>),
+}
+
+#[derive(Clone)]
 pub struct SshTunnel {
     pub local_port: u16,
-    running: Arc<AtomicBool>,
+    backend: TunnelBackend,
 }
 
 pub static TUNNELS: OnceLock<Mutex<HashMap<String, SshTunnel>>> = OnceLock::new();
@@ -32,7 +39,136 @@ impl SshTunnel {
         remote_host: &str,
         remote_port: u16,
     ) -> Result<Self, String> {
-        // 1. Connect to SSH Server
+        let use_system_ssh = ssh_password.is_none();
+        println!(
+            "[SSH Tunnel] New Request: Host={}, Port={}, User={}, SystemMode={}",
+            ssh_host, ssh_port, ssh_user, use_system_ssh
+        );
+
+        let local_port = {
+            let listener = TcpListener::bind("127.0.0.1:0")
+                .map_err(|e| format!("Failed to find free local port: {}", e))?;
+            listener.local_addr().unwrap().port()
+        };
+        println!("[SSH Tunnel] Assigned Local Port: {}", local_port);
+
+        if use_system_ssh {
+            return Self::new_system_ssh(
+                ssh_host,
+                ssh_port,
+                ssh_user,
+                ssh_key_file,
+                remote_host,
+                remote_port,
+                local_port,
+            );
+        } else {
+            return Self::new_libssh2(
+                ssh_host,
+                ssh_port,
+                ssh_user,
+                ssh_password,
+                ssh_key_file,
+                remote_host,
+                remote_port,
+                local_port,
+            );
+        }
+    }
+
+    fn new_system_ssh(
+        ssh_host: &str,
+        ssh_port: u16,
+        ssh_user: &str,
+        ssh_key_file: Option<&str>,
+        remote_host: &str,
+        remote_port: u16,
+        local_port: u16,
+    ) -> Result<Self, String> {
+        let mut args = vec![
+            "-N".to_string(), // No remote command
+            "-L".to_string(),
+            // Explicitly bind to 127.0.0.1 to avoid ambiguity or public binding
+            format!("127.0.0.1:{}:{}:{}", local_port, remote_host, remote_port),
+        ];
+
+        let destination = if !ssh_user.trim().is_empty() {
+            format!("{}@{}", ssh_user, ssh_host)
+        } else {
+            ssh_host.to_string()
+        };
+
+        if ssh_port != 22 {
+            args.push("-p".to_string());
+            args.push(ssh_port.to_string());
+        }
+
+        if let Some(key) = ssh_key_file {
+            if !key.trim().is_empty() {
+                args.push("-i".to_string());
+                args.push(key.to_string());
+            }
+        }
+
+        args.push("-o".to_string());
+        args.push("StrictHostKeyChecking=no".to_string());
+
+        args.push(destination);
+
+        println!("[SSH Tunnel] Executing: ssh {:?}", args);
+
+        let mut child = Command::new("ssh")
+            .args(args)
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| {
+                format!(
+                    "Failed to launch system ssh: {}. Ensure 'ssh' is in PATH.",
+                    e
+                )
+            })?;
+
+        thread::sleep(Duration::from_millis(500));
+
+        let child_arc = Arc::new(Mutex::new(child));
+        {
+            let mut c = child_arc.lock().unwrap();
+            if let Ok(Some(status)) = c.try_wait() {
+                let mut err_msg = String::new();
+                if let Some(mut stderr) = c.stderr.take() {
+                    stderr.read_to_string(&mut err_msg).ok();
+                }
+                return Err(format!(
+                    "SSH tunnel process exited early with status: {}. Error: {}",
+                    status, err_msg
+                ));
+            }
+        }
+
+        Ok(Self {
+            local_port,
+            backend: TunnelBackend::SystemSsh(child_arc),
+        })
+    }
+
+    fn new_libssh2(
+        ssh_host: &str,
+        ssh_port: u16,
+        ssh_user: &str,
+        ssh_password: Option<&str>,
+        ssh_key_file: Option<&str>,
+        remote_host: &str,
+        remote_port: u16,
+        local_port: u16,
+    ) -> Result<Self, String> {
+        println!(
+            "[SSH Tunnel] LibSsh2 connecting to {}:{}",
+            ssh_host, ssh_port
+        );
+        let listener = TcpListener::bind(format!("127.0.0.1:{}", local_port))
+            .map_err(|e| format!("Failed to bind local port {}: {}", local_port, e))?;
+
         let tcp = TcpStream::connect(format!("{}:{}", ssh_host, ssh_port))
             .map_err(|e| format!("Failed to connect to SSH server: {}", e))?;
 
@@ -41,7 +177,6 @@ impl SshTunnel {
         sess.handshake()
             .map_err(|e| format!("SSH handshake failed: {}", e))?;
 
-        // 2. Authenticate
         if let Some(key_path) = ssh_key_file {
             if !key_path.trim().is_empty() {
                 sess.userauth_pubkey_file(
@@ -71,13 +206,7 @@ impl SshTunnel {
             return Err("SSH authentication failed".to_string());
         }
 
-        // Set a short timeout for the session to allow non-blocking-ish reads
         sess.set_timeout(10);
-
-        // 3. Setup Local Listener
-        let listener = TcpListener::bind("127.0.0.1:0")
-            .map_err(|e| format!("Failed to bind local port: {}", e))?;
-        let local_port = listener.local_addr().unwrap().port();
 
         let running = Arc::new(AtomicBool::new(true));
         let running_clone = running.clone();
@@ -123,12 +252,11 @@ impl SshTunnel {
                             while active && running_inner.load(Ordering::Relaxed) {
                                 let mut did_work = false;
 
-                                // 1. Local -> Remote
                                 match local_stream.read(&mut buf) {
                                     Ok(0) => {
                                         active = false;
                                         break;
-                                    } // EOF
+                                    }
                                     Ok(n) => {
                                         if channel.write_all(&buf[..n]).is_err() {
                                             active = false;
@@ -143,18 +271,8 @@ impl SshTunnel {
                                     }
                                 }
 
-                                // 2. Remote -> Local
-                                // channel.read blocks based on session timeout (set to 10ms)
                                 match channel.read(&mut buf) {
                                     Ok(0) => {
-                                        // ssh2 read returning 0 might mean EOF or Timeout if configured?
-                                        // With libssh2, 0 usually means EOF.
-                                        // Timeout usually returns Err(WouldBlock) or similar if configured properly?
-                                        // Actually `ssh2` rust wrapper maps timeout to Ok(0)? No.
-                                        // Let's check error.
-                                        // If EOF, active = false.
-                                        // But wait, if timeout, it might return Err.
-                                        // Let's assume EOF for now.
                                         active = false;
                                         break;
                                     }
@@ -165,18 +283,13 @@ impl SshTunnel {
                                         }
                                         did_work = true;
                                     }
-                                    Err(_) => {
-                                        // Timeout or error. Ideally check if it's a timeout.
-                                        // ssh2 error handling is specific.
-                                        // We assume timeout if we set it.
-                                    }
+                                    Err(_) => {}
                                 }
 
                                 if !did_work {
                                     thread::sleep(Duration::from_millis(1));
                                 }
                             }
-                            // Channel closes on drop (end of scope)
                         });
                     }
                     Err(_) => {}
@@ -186,11 +299,20 @@ impl SshTunnel {
 
         Ok(Self {
             local_port,
-            running,
+            backend: TunnelBackend::LibSsh2(running),
         })
     }
 
     pub fn stop(&self) {
-        self.running.store(false, Ordering::Relaxed);
+        match &self.backend {
+            TunnelBackend::LibSsh2(running) => {
+                running.store(false, Ordering::Relaxed);
+            }
+            TunnelBackend::SystemSsh(child) => {
+                if let Ok(mut c) = child.lock() {
+                    let _ = c.kill();
+                }
+            }
+        }
     }
 }
