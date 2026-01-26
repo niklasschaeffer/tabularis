@@ -80,4 +80,4 @@ npm run tauri build
 - [ ] Multiple Tabs support
 
 ## License
-MIT
+Apache License 2.0
