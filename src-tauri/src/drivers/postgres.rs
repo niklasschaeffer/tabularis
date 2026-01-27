@@ -1,6 +1,6 @@
 use sqlx::{Column, Connection, Row};
 use urlencoding::encode;
-use crate::models::{ConnectionParams, TableInfo, TableColumn, QueryResult, Pagination};
+use crate::models::{ConnectionParams, TableInfo, TableColumn, QueryResult, Pagination, ForeignKey, Index};
 use crate::drivers::common::extract_postgres_value;
 
 pub async fn get_tables(params: &ConnectionParams) -> Result<Vec<TableInfo>, String> {
@@ -59,6 +59,100 @@ pub async fn get_columns(params: &ConnectionParams, table_name: &str) -> Result<
             is_pk: is_pk > 0,
             is_nullable: null_str == "YES",
             is_auto_increment: is_auto,
+        }
+    }).collect())
+}
+
+pub async fn get_foreign_keys(params: &ConnectionParams, table_name: &str) -> Result<Vec<ForeignKey>, String> {
+    let user = encode(params.username.as_deref().unwrap_or_default());
+    let pass = encode(params.password.as_deref().unwrap_or_default());
+    let url = format!("postgres://{}:{}@{}:{}/{}", 
+        user, pass,
+        params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(5432), params.database);
+    let mut conn = sqlx::postgres::PgConnection::connect(&url).await.map_err(|e| e.to_string())?;
+
+    let query = r#"
+        SELECT
+            tc.constraint_name, 
+            kcu.column_name, 
+            ccu.table_name AS foreign_table_name,
+            ccu.column_name AS foreign_column_name,
+            rc.update_rule,
+            rc.delete_rule
+        FROM 
+            information_schema.table_constraints AS tc 
+            JOIN information_schema.key_column_usage AS kcu
+            ON tc.constraint_name = kcu.constraint_name
+            AND tc.table_schema = kcu.table_schema
+            JOIN information_schema.constraint_column_usage AS ccu
+            ON ccu.constraint_name = tc.constraint_name
+            AND ccu.table_schema = tc.table_schema
+            JOIN information_schema.referential_constraints AS rc
+            ON rc.constraint_name = tc.constraint_name
+        WHERE tc.constraint_type = 'FOREIGN KEY' 
+        AND tc.table_name = $1
+    "#;
+
+    let rows = sqlx::query(query)
+        .bind(table_name)
+        .fetch_all(&mut conn).await.map_err(|e| e.to_string())?;
+
+    Ok(rows.iter().map(|r| {
+        ForeignKey {
+            name: r.try_get("constraint_name").unwrap_or_default(),
+            column_name: r.try_get("column_name").unwrap_or_default(),
+            ref_table: r.try_get("foreign_table_name").unwrap_or_default(),
+            ref_column: r.try_get("foreign_column_name").unwrap_or_default(),
+            on_update: r.try_get("update_rule").ok(),
+            on_delete: r.try_get("delete_rule").ok(),
+        }
+    }).collect())
+}
+
+pub async fn get_indexes(params: &ConnectionParams, table_name: &str) -> Result<Vec<Index>, String> {
+    let user = encode(params.username.as_deref().unwrap_or_default());
+    let pass = encode(params.password.as_deref().unwrap_or_default());
+    let url = format!("postgres://{}:{}@{}:{}/{}", 
+        user, pass,
+        params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(5432), params.database);
+    let mut conn = sqlx::postgres::PgConnection::connect(&url).await.map_err(|e| e.to_string())?;
+
+    let query = r#"
+        SELECT
+            i.relname as index_name,
+            a.attname as column_name,
+            ix.indisunique as is_unique,
+            ix.indisprimary as is_primary,
+            array_position(ix.indkey, a.attnum) as seq_in_index
+        FROM
+            pg_class t,
+            pg_class i,
+            pg_index ix,
+            pg_attribute a
+        WHERE
+            t.oid = ix.indrelid
+            AND i.oid = ix.indexrelid
+            AND a.attrelid = t.oid
+            AND a.attnum = ANY(ix.indkey)
+            AND t.relkind = 'r'
+            AND t.relname = $1
+        ORDER BY
+            t.relname,
+            i.relname,
+            seq_in_index
+    "#;
+
+    let rows = sqlx::query(query)
+        .bind(table_name)
+        .fetch_all(&mut conn).await.map_err(|e| e.to_string())?;
+
+    Ok(rows.iter().map(|r| {
+        Index {
+            name: r.try_get("index_name").unwrap_or_default(),
+            column_name: r.try_get("column_name").unwrap_or_default(),
+            is_unique: r.try_get("is_unique").unwrap_or(false),
+            is_primary: r.try_get("is_primary").unwrap_or(false),
+            seq_in_index: r.try_get::<i32, _>("seq_in_index").unwrap_or(0),
         }
     }).collect())
 }

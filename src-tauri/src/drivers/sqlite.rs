@@ -1,5 +1,5 @@
 use sqlx::{Column, Connection, Row};
-use crate::models::{ConnectionParams, TableInfo, TableColumn, QueryResult, Pagination};
+use crate::models::{ConnectionParams, TableInfo, TableColumn, QueryResult, Pagination, ForeignKey, Index};
 use crate::drivers::common::extract_sqlite_value;
 
 pub async fn get_tables(params: &ConnectionParams) -> Result<Vec<TableInfo>, String> {
@@ -37,6 +37,61 @@ pub async fn get_columns(params: &ConnectionParams, table_name: &str) -> Result<
             is_auto_increment: is_auto,
         }
     }).collect())
+}
+
+pub async fn get_foreign_keys(params: &ConnectionParams, table_name: &str) -> Result<Vec<ForeignKey>, String> {
+    let url = format!("sqlite://{}", params.database);
+    let mut conn = sqlx::sqlite::SqliteConnection::connect(&url).await.map_err(|e| e.to_string())?;
+    
+    let query = format!("PRAGMA foreign_key_list('{}')", table_name);
+    let rows = sqlx::query(&query)
+        .fetch_all(&mut conn).await.map_err(|e| e.to_string())?;
+        
+    // id, seq, table, from, to, on_update, on_delete, match
+    Ok(rows.iter().map(|r| {
+        let id: i32 = r.try_get("id").unwrap_or(0);
+        ForeignKey {
+            name: format!("fk_{}_{}", id, r.try_get::<String, _>("table").unwrap_or_default()), // SQLite FKs don't always have named constraints exposed easily here, but we construct one
+            column_name: r.try_get("from").unwrap_or_default(),
+            ref_table: r.try_get("table").unwrap_or_default(),
+            ref_column: r.try_get("to").unwrap_or_default(),
+            on_update: r.try_get("on_update").ok(),
+            on_delete: r.try_get("on_delete").ok(),
+        }
+    }).collect())
+}
+
+pub async fn get_indexes(params: &ConnectionParams, table_name: &str) -> Result<Vec<Index>, String> {
+    let url = format!("sqlite://{}", params.database);
+    let mut conn = sqlx::sqlite::SqliteConnection::connect(&url).await.map_err(|e| e.to_string())?;
+    
+    let list_query = format!("PRAGMA index_list('{}')", table_name);
+    let indexes = sqlx::query(&list_query)
+        .fetch_all(&mut conn).await.map_err(|e| e.to_string())?;
+        
+    let mut result = Vec::new();
+    
+    for idx_row in indexes {
+        let name: String = idx_row.try_get("name").unwrap_or_default();
+        let unique: i32 = idx_row.try_get("unique").unwrap_or(0);
+        let origin: String = idx_row.try_get("origin").unwrap_or_default(); // pk for primary key
+        
+        let info_query = format!("PRAGMA index_info('{}')", name);
+        let info_rows = sqlx::query(&info_query)
+            .fetch_all(&mut conn).await.map_err(|e| e.to_string())?;
+            
+        for info in info_rows {
+            result.push(Index {
+                name: name.clone(),
+                column_name: info.try_get("name").unwrap_or_default(),
+                is_unique: unique > 0,
+                is_primary: origin == "pk",
+                seq_in_index: info.try_get::<i32, _>("seqno").unwrap_or(0),
+            });
+        }
+    }
+    
+    Ok(result)
 }
 
 pub async fn delete_record(params: &ConnectionParams, table: &str, pk_col: &str, pk_val: serde_json::Value) -> Result<u64, String> {

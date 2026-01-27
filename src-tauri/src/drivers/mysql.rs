@@ -1,6 +1,6 @@
 use sqlx::{Column, Connection, Row};
 use urlencoding::encode;
-use crate::models::{ConnectionParams, TableInfo, TableColumn, QueryResult, Pagination};
+use crate::models::{ConnectionParams, TableInfo, TableColumn, QueryResult, Pagination, ForeignKey, Index};
 use crate::drivers::common::extract_mysql_value;
 
 pub async fn get_tables(params: &ConnectionParams) -> Result<Vec<TableInfo>, String> {
@@ -44,6 +44,85 @@ pub async fn get_columns(params: &ConnectionParams, table_name: &str) -> Result<
             is_pk: key == "PRI",
             is_nullable: null_str == "YES",
             is_auto_increment: extra.contains("auto_increment"),
+        }
+    }).collect())
+}
+
+pub async fn get_foreign_keys(params: &ConnectionParams, table_name: &str) -> Result<Vec<ForeignKey>, String> {
+    let user = encode(params.username.as_deref().unwrap_or_default());
+    let pass = encode(params.password.as_deref().unwrap_or_default());
+    let url = format!("mysql://{}:{}@{}:{}/{}", 
+        user, pass,
+        params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(3306), params.database);
+    let mut conn = sqlx::mysql::MySqlConnection::connect(&url).await.map_err(|e| e.to_string())?;
+
+    let query = r#"
+        SELECT 
+            kcu.CONSTRAINT_NAME,
+            kcu.COLUMN_NAME,
+            kcu.REFERENCED_TABLE_NAME,
+            kcu.REFERENCED_COLUMN_NAME,
+            rc.UPDATE_RULE,
+            rc.DELETE_RULE
+        FROM information_schema.KEY_COLUMN_USAGE kcu
+        JOIN information_schema.REFERENTIAL_CONSTRAINTS rc 
+        ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME 
+        AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA
+        WHERE kcu.TABLE_SCHEMA = DATABASE() 
+        AND kcu.TABLE_NAME = ? 
+        AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
+        ORDER BY kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION
+    "#;
+
+    let rows = sqlx::query(query)
+        .bind(table_name)
+        .fetch_all(&mut conn).await.map_err(|e| e.to_string())?;
+
+    Ok(rows.iter().map(|r| {
+        ForeignKey {
+            name: r.try_get("CONSTRAINT_NAME").unwrap_or_default(),
+            column_name: r.try_get("COLUMN_NAME").unwrap_or_default(),
+            ref_table: r.try_get("REFERENCED_TABLE_NAME").unwrap_or_default(),
+            ref_column: r.try_get("REFERENCED_COLUMN_NAME").unwrap_or_default(),
+            on_update: r.try_get("UPDATE_RULE").ok(),
+            on_delete: r.try_get("DELETE_RULE").ok(),
+        }
+    }).collect())
+}
+
+pub async fn get_indexes(params: &ConnectionParams, table_name: &str) -> Result<Vec<Index>, String> {
+    let user = encode(params.username.as_deref().unwrap_or_default());
+    let pass = encode(params.password.as_deref().unwrap_or_default());
+    let url = format!("mysql://{}:{}@{}:{}/{}", 
+        user, pass,
+        params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(3306), params.database);
+    let mut conn = sqlx::mysql::MySqlConnection::connect(&url).await.map_err(|e| e.to_string())?;
+
+    let query = r#"
+        SELECT 
+            INDEX_NAME, 
+            COLUMN_NAME, 
+            NON_UNIQUE, 
+            SEQ_IN_INDEX 
+        FROM information_schema.STATISTICS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = ?
+        ORDER BY INDEX_NAME, SEQ_IN_INDEX
+    "#;
+
+    let rows = sqlx::query(query)
+        .bind(table_name)
+        .fetch_all(&mut conn).await.map_err(|e| e.to_string())?;
+
+    Ok(rows.iter().map(|r| {
+        let index_name: String = r.try_get("INDEX_NAME").unwrap_or_default();
+        let non_unique: i64 = r.try_get("NON_UNIQUE").unwrap_or(1);
+        Index {
+            name: index_name.clone(),
+            column_name: r.try_get("COLUMN_NAME").unwrap_or_default(),
+            is_unique: non_unique == 0,
+            is_primary: index_name == "PRIMARY",
+            seq_in_index: r.try_get::<i64, _>("SEQ_IN_INDEX").unwrap_or(0) as i32,
         }
     }).collect())
 }

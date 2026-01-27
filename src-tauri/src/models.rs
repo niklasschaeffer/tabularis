@@ -38,6 +38,25 @@ pub struct TableColumn {
     pub is_auto_increment: bool,
 }
 
+#[derive(Debug, Serialize)]
+pub struct ForeignKey {
+    pub name: String,
+    pub column_name: String,
+    pub ref_table: String,
+    pub ref_column: String,
+    pub on_delete: Option<String>,
+    pub on_update: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Index {
+    pub name: String,
+    pub column_name: String,
+    pub is_unique: bool,
+    pub is_primary: bool,
+    pub seq_in_index: i32,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Pagination {
     pub page: u32,

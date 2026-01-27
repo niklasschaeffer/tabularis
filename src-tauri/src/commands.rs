@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use tokio::task::AbortHandle;
 
 use crate::ssh_tunnel::{SshTunnel, get_tunnels};
-use crate::models::{ConnectionParams, SavedConnection, TableInfo, TableColumn, QueryResult};
+use crate::models::{ConnectionParams, SavedConnection, TableInfo, TableColumn, QueryResult, ForeignKey, Index};
 use crate::drivers::{mysql, postgres, sqlite};
 
 pub struct QueryCancellationState {
@@ -258,6 +258,38 @@ pub async fn get_columns<R: Runtime>(
         "mysql" => mysql::get_columns(&params, &table_name).await,
         "postgres" => postgres::get_columns(&params, &table_name).await,
         "sqlite" => sqlite::get_columns(&params, &table_name).await,
+        _ => Err("Unsupported driver".into()),
+    }
+}
+
+#[tauri::command]
+pub async fn get_foreign_keys<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    table_name: String,
+) -> Result<Vec<ForeignKey>, String> {
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let params = resolve_connection_params(&saved_conn.params)?;
+    match saved_conn.params.driver.as_str() {
+        "mysql" => mysql::get_foreign_keys(&params, &table_name).await,
+        "postgres" => postgres::get_foreign_keys(&params, &table_name).await,
+        "sqlite" => sqlite::get_foreign_keys(&params, &table_name).await,
+        _ => Err("Unsupported driver".into()),
+    }
+}
+
+#[tauri::command]
+pub async fn get_indexes<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    table_name: String,
+) -> Result<Vec<Index>, String> {
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let params = resolve_connection_params(&saved_conn.params)?;
+    match saved_conn.params.driver.as_str() {
+        "mysql" => mysql::get_indexes(&params, &table_name).await,
+        "postgres" => postgres::get_indexes(&params, &table_name).await,
+        "sqlite" => sqlite::get_indexes(&params, &table_name).await,
         _ => Err("Unsupported driver".into()),
     }
 }

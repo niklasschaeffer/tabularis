@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Database, Terminal, Settings, Table as TableIcon, Loader2, Copy, Hash, PlaySquare, FileText, Plus, ChevronRight, ChevronDown, FileCode, Play, Edit, Trash2, PanelLeftClose, PanelLeft, Key, Columns } from 'lucide-react';
+import { Database, Terminal, Settings, Table as TableIcon, Loader2, Copy, Hash, PlaySquare, FileText, Plus, ChevronRight, ChevronDown, FileCode, Play, Edit, Trash2, PanelLeftClose, PanelLeft, Key, Columns, List, Link as LinkIcon, Folder } from 'lucide-react';
 import clsx from 'clsx';
 import { ask, message } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
@@ -11,6 +11,7 @@ import { ContextMenu } from '../ui/ContextMenu';
 import { SchemaModal } from '../ui/SchemaModal';
 import { CreateTableModal } from '../ui/CreateTableModal';
 import { QueryModal } from '../ui/QueryModal';
+import { ModifyColumnModal } from '../ui/ModifyColumnModal';
 
 interface TableColumn {
   name: string;
@@ -18,6 +19,20 @@ interface TableColumn {
   is_pk: boolean;
   is_nullable: boolean;
   is_auto_increment: boolean;
+}
+
+interface ForeignKey {
+    name: string;
+    column_name: string;
+    ref_table: string;
+    ref_column: string;
+}
+
+interface Index {
+    name: string;
+    column_name: string;
+    is_unique: boolean;
+    is_primary: boolean;
 }
 
 interface AccordionProps {
@@ -74,13 +89,15 @@ const SidebarColumnItem = ({
     tableName,
     connectionId,
     driver,
-    onRefresh
+    onRefresh,
+    onEdit
 }: { 
     column: TableColumn; 
     tableName: string;
     connectionId: string;
     driver: string;
     onRefresh: () => void;
+    onEdit: (column: TableColumn) => void;
 }) => {
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
@@ -119,6 +136,7 @@ const SidebarColumnItem = ({
             <div 
                 className="flex items-center gap-2 px-3 py-1 text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200 cursor-pointer group font-mono"
                 onContextMenu={handleContextMenu}
+                onDoubleClick={() => onEdit(column)}
             >
                 {column.is_pk ? (
                     <Key size={12} className="text-yellow-500 shrink-0" />
@@ -138,6 +156,11 @@ const SidebarColumnItem = ({
                     y={contextMenu.y}
                     onClose={() => setContextMenu(null)}
                     items={[
+                        {
+                            label: 'Modify Column',
+                            icon: Edit,
+                            action: () => onEdit(column)
+                        },
                         {
                             label: 'Copy Name',
                             icon: Copy,
@@ -162,7 +185,9 @@ const SidebarTableItem = ({
     onTableClick, 
     onContextMenu,
     connectionId,
-    driver
+    driver,
+    onAddColumn,
+    onEditColumn
 }: { 
     table: { name: string }; 
     activeTable: string | null;
@@ -170,10 +195,22 @@ const SidebarTableItem = ({
     onContextMenu: (e: React.MouseEvent, type: 'table', id: string, label: string) => void;
     connectionId: string;
     driver: string;
+    onAddColumn: (tableName: string) => void;
+    onEditColumn: (tableName: string, col: TableColumn) => void;
 }) => {
+    // Prevent unused variable warning
+    void onAddColumn;
+
     const [isExpanded, setIsExpanded] = useState(false);
     const [columns, setColumns] = useState<TableColumn[]>([]);
+    const [foreignKeys, setForeignKeys] = useState<ForeignKey[]>([]);
+    const [indexes, setIndexes] = useState<Index[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    
+    // Sub-expansion states
+    const [expandColumns, setExpandColumns] = useState(true);
+    const [expandKeys, setExpandKeys] = useState(false);
+    const [expandIndexes, setExpandIndexes] = useState(false);
 
     const handleExpand = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -183,24 +220,55 @@ const SidebarTableItem = ({
         }
 
         setIsExpanded(true);
-        refreshColumns();
+        refreshMetadata();
     };
 
-    const refreshColumns = async () => {
+    const refreshMetadata = async () => {
         if (!connectionId) return;
         setIsLoading(true);
         try {
-            const cols = await invoke<TableColumn[]>('get_columns', { 
-                connectionId, 
-                tableName: table.name 
-            });
+            // Parallel fetch for speed
+            const [cols, fks, idxs] = await Promise.all([
+                invoke<TableColumn[]>('get_columns', { connectionId, tableName: table.name }),
+                invoke<ForeignKey[]>('get_foreign_keys', { connectionId, tableName: table.name }),
+                invoke<Index[]>('get_indexes', { connectionId, tableName: table.name })
+            ]);
+            
             setColumns(cols);
+            setForeignKeys(fks);
+            setIndexes(idxs);
         } catch (err) {
             console.error(err);
         } finally {
             setIsLoading(false);
         }
     };
+    
+    const handleContextMenu = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onContextMenu(e, 'table', table.name, table.name);
+    };
+
+    // Group indexes by name since API returns one row per column
+    const groupedIndexes = React.useMemo(() => {
+        const groups: Record<string, Index & { columns: string[] }> = {};
+        indexes.forEach(idx => {
+            if (!groups[idx.name]) {
+                groups[idx.name] = { ...idx, columns: [] };
+            }
+            groups[idx.name].columns.push(idx.column_name);
+        });
+        return Object.values(groups);
+    }, [indexes]);
+
+    // Separate PKs from Indexes for "keys" folder?
+    // DataGrip puts PK and Unique constraints in "keys". 
+    // Indexes (non-unique or explicit indexes) in "indexes".
+    // Currently `get_indexes` returns all indexes including PK/Unique backing indexes.
+    
+    const keys = groupedIndexes.filter(i => i.is_primary || i.is_unique);
+    const pureIndexes = groupedIndexes.filter(i => !i.is_primary && !i.is_unique);
 
     return (
         <div className="flex flex-col">
@@ -211,7 +279,7 @@ const SidebarTableItem = ({
                     e.dataTransfer.effectAllowed = 'move';
                 }}
                 onClick={() => onTableClick(table.name)}
-                onContextMenu={(e) => onContextMenu(e, 'table', table.name, table.name)}
+                onContextMenu={handleContextMenu}
                 className={clsx(
                     "flex items-center gap-1 pl-1 pr-3 py-1.5 text-sm cursor-pointer group select-none transition-colors border-l-2",
                     activeTable === table.name 
@@ -236,16 +304,104 @@ const SidebarTableItem = ({
                             Loading...
                         </div>
                     ) : (
-                        columns.map(col => (
-                            <SidebarColumnItem 
-                                key={col.name} 
-                                column={col} 
-                                tableName={table.name}
-                                connectionId={connectionId}
-                                driver={driver}
-                                onRefresh={refreshColumns}
-                            />
-                        ))
+                        <>
+                            {/* Columns Folder */}
+                            <div className="flex flex-col">
+                                <div 
+                                    className="flex items-center gap-2 px-2 py-1 text-xs text-slate-500 hover:text-slate-300 cursor-pointer select-none"
+                                    onClick={(e) => { e.stopPropagation(); setExpandColumns(!expandColumns); }}
+                                >
+                                    <Folder size={12} className="text-blue-400/70" />
+                                    <span>columns</span>
+                                    <span className="ml-auto text-[10px] opacity-50">{columns.length}</span>
+                                </div>
+                                {expandColumns && (
+                                    <div className="ml-4 border-l border-slate-800/50">
+                                        {columns.map(col => (
+                                            <SidebarColumnItem 
+                                                key={col.name} 
+                                                column={col} 
+                                                tableName={table.name}
+                                                connectionId={connectionId}
+                                                driver={driver}
+                                                onRefresh={refreshMetadata}
+                                                onEdit={(c) => onEditColumn(table.name, c)}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Keys Folder (PK/Unique) */}
+                            {(keys.length > 0) && (
+                                <div className="flex flex-col">
+                                    <div 
+                                        className="flex items-center gap-2 px-2 py-1 text-xs text-slate-500 hover:text-slate-300 cursor-pointer select-none"
+                                        onClick={(e) => { e.stopPropagation(); setExpandKeys(!expandKeys); }}
+                                    >
+                                        <Folder size={12} className="text-yellow-500/70" />
+                                        <span>keys</span>
+                                        <span className="ml-auto text-[10px] opacity-50">{keys.length}</span>
+                                    </div>
+                                    {expandKeys && (
+                                        <div className="ml-4 border-l border-slate-800/50">
+                                            {keys.map(k => (
+                                                <div key={k.name} className="flex items-center gap-2 px-3 py-1 text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200 cursor-pointer group font-mono" title={k.columns.join(', ')}>
+                                                    <Key size={12} className={k.is_primary ? "text-yellow-500" : "text-slate-400"} />
+                                                    <span className="truncate">{k.name}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Foreign Keys Folder */}
+                            {(foreignKeys.length > 0) && (
+                                <div className="flex flex-col">
+                                    <div 
+                                        className="flex items-center gap-2 px-2 py-1 text-xs text-slate-500 hover:text-slate-300 cursor-pointer select-none"
+                                        // Auto expand FKs? Maybe keep collapsed by default
+                                    >
+                                        <Folder size={12} className="text-purple-400/70" />
+                                        <span>foreign keys</span>
+                                        <span className="ml-auto text-[10px] opacity-50">{foreignKeys.length}</span>
+                                    </div>
+                                    <div className="ml-4 border-l border-slate-800/50">
+                                        {foreignKeys.map(fk => (
+                                            <div key={fk.name} className="flex items-center gap-2 px-3 py-1 text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200 cursor-pointer group font-mono" title={`${fk.column_name} -> ${fk.ref_table}.${fk.ref_column}`}>
+                                                <LinkIcon size={12} className="text-purple-400" />
+                                                <span className="truncate">{fk.name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Indexes Folder */}
+                            {(pureIndexes.length > 0) && (
+                                <div className="flex flex-col">
+                                    <div 
+                                        className="flex items-center gap-2 px-2 py-1 text-xs text-slate-500 hover:text-slate-300 cursor-pointer select-none"
+                                        onClick={(e) => { e.stopPropagation(); setExpandIndexes(!expandIndexes); }}
+                                    >
+                                        <Folder size={12} className="text-green-400/70" />
+                                        <span>indexes</span>
+                                        <span className="ml-auto text-[10px] opacity-50">{pureIndexes.length}</span>
+                                    </div>
+                                    {expandIndexes && (
+                                        <div className="ml-4 border-l border-slate-800/50">
+                                            {pureIndexes.map(idx => (
+                                                <div key={idx.name} className="flex items-center gap-2 px-3 py-1 text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200 cursor-pointer group font-mono" title={idx.columns.join(', ')}>
+                                                    <List size={12} className="text-green-400" />
+                                                    <span className="truncate">{idx.name}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             )}
@@ -262,6 +418,7 @@ export const Sidebar = () => {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: 'table' | 'query'; id: string; label: string; data?: SavedQuery } | null>(null);
   const [schemaModalTable, setSchemaModalTable] = useState<string | null>(null);
   const [isCreateTableModalOpen, setIsCreateTableModalOpen] = useState(false);
+  const [modifyColumnModal, setModifyColumnModal] = useState<{ isOpen: boolean; tableName: string; column: TableColumn | null }>({ isOpen: false, tableName: '', column: null });
   
   const [queriesOpen, setQueriesOpen] = useState(false);
   const [tablesOpen, setTablesOpen] = useState(true);
@@ -393,6 +550,8 @@ export const Sidebar = () => {
                                     onContextMenu={handleContextMenu}
                                     connectionId={activeConnectionId!}
                                     driver={activeDriver!}
+                                    onAddColumn={(t) => setModifyColumnModal({ isOpen: true, tableName: t, column: null })}
+                                    onEditColumn={(t, c) => setModifyColumnModal({ isOpen: true, tableName: t, column: c })}
                                 />
                             ))}
                         </div>
@@ -453,6 +612,11 @@ export const Sidebar = () => {
                     label: 'Copy Name',
                     icon: Copy,
                     action: () => navigator.clipboard.writeText(contextMenu.id)
+                },
+                {
+                    label: 'Add Column',
+                    icon: Plus,
+                    action: () => setModifyColumnModal({ isOpen: true, tableName: contextMenu.id, column: null })
                 }
             ] : [
                 // Saved Query Actions
@@ -518,6 +682,31 @@ export const Sidebar = () => {
                     await updateQuery(queryModal.query.id, name, sql);
                 }
             }}
+        />
+      )}
+
+      {modifyColumnModal.isOpen && activeConnectionId && (
+        <ModifyColumnModal
+          isOpen={modifyColumnModal.isOpen}
+          onClose={() => setModifyColumnModal({ ...modifyColumnModal, isOpen: false })}
+          onSuccess={() => {
+              // We need to refresh the specific table columns. 
+              // Currently SidebarTableItem manages its own state and we don't have a direct trigger.
+              // However, collapsing and expanding will refresh it.
+              // For now, let's just refresh the whole tables list which is overkill but safe,
+              // or trust user to collapse/expand.
+              // Ideally we pass a callback, but we are too high up.
+              // Let's just rely on manual refresh for now, OR trigger a global refreshTables() which might not refresh columns if they are lazy loaded.
+              // Actually, refreshTables() only reloads table names.
+              // The columns are loaded in SidebarTableItem.
+              
+              // We could force a re-render by changing a key, but that resets expansion state.
+              // Let's accept that user might need to collapse/expand to see new column or changes.
+          }}
+          connectionId={activeConnectionId}
+          tableName={modifyColumnModal.tableName}
+          driver={activeDriver || 'sqlite'}
+          column={modifyColumnModal.column}
         />
       )}
     </div>

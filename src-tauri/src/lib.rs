@@ -28,6 +28,8 @@ pub fn run() {
             commands::get_connections,
             commands::get_tables,
             commands::get_columns,
+            commands::get_foreign_keys,
+            commands::get_indexes,
             commands::delete_record,
             commands::update_record,
             commands::insert_record,
