@@ -124,6 +124,13 @@ export const Editor = () => {
     const textToRun = sql?.trim() || targetTab?.query;
     if (!textToRun || !textToRun.trim()) return;
 
+    // Log query from Visual Query Builder
+    if (targetTab?.type === 'query_builder') {
+      console.log('🔍 Visual Query Builder - Executing Query:');
+      console.log(textToRun);
+      console.log('─'.repeat(80));
+    }
+
     updateTab(targetTabId, { isLoading: true, error: "", result: null, executionTime: null, page: pageNum });
 
     try {
@@ -288,6 +295,13 @@ export const Editor = () => {
     }
     setIsRunDropdownOpen(prev => !prev);
   }, [isRunDropdownOpen, activeTab]);
+
+  // Update dropdown queries when Visual Query Builder query changes
+  useEffect(() => {
+    if (isRunDropdownOpen && activeTab?.type === 'query_builder' && activeTab.query) {
+      setSelectableQueries([activeTab.query]);
+    }
+  }, [activeTab?.query, activeTab?.type, isRunDropdownOpen]);
 
   if (!activeTab) {
     return (

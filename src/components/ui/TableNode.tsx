@@ -1,9 +1,10 @@
 import { memo, useState } from 'react';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
+import { X } from 'lucide-react';
 import clsx from 'clsx';
 
 export interface ColumnAggregation {
-  function?: 'COUNT' | 'SUM' | 'AVG' | 'MIN' | 'MAX' | 'COUNT_DISTINCT' | '';
+  function?: 'COUNT' | 'SUM' | 'AVG' | 'MIN' | 'MAX' | 'COUNT_DISTINCT';
   alias?: string;
 }
 
@@ -20,6 +21,7 @@ export interface TableNodeData extends Record<string, unknown> {
   onColumnCheck: (column: string, checked: boolean) => void;
   onColumnAggregation: (column: string, aggregation: ColumnAggregation) => void;
   onColumnAlias: (column: string, alias: string) => void;
+  onDelete?: () => void;
 }
 
 export type TableNode = Node<TableNodeData, 'table'>;
@@ -29,9 +31,18 @@ export const TableNodeComponent = memo(({ data }: NodeProps<TableNode>) => {
 
   return (
     <div className="bg-slate-800 border border-slate-600 rounded shadow-lg min-w-[200px] overflow-hidden">
-      <div className="bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-200 border-b border-slate-700 flex items-center gap-2">
+      <div className="bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-200 border-b border-slate-700 flex items-center gap-2 relative">
         <div className="w-2 h-2 rounded-full bg-blue-500" />
         {data.label}
+        {data.onDelete && (
+          <button
+            onClick={data.onDelete}
+            className="absolute top-1.5 right-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 p-1 rounded transition-colors"
+            title="Delete Table"
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
       <div className="p-2 flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar">
         {data.columns.map((col) => {
@@ -41,15 +52,21 @@ export const TableNodeComponent = memo(({ data }: NodeProps<TableNode>) => {
           
           return (
             <div key={col.name} className="group relative">
-              <div className="flex items-center justify-between text-xs text-slate-400 hover:text-slate-200 py-0.5">
-                <label className="flex items-center gap-2 cursor-pointer flex-1 select-none">
+              <div className="flex items-center justify-between text-xs text-slate-400 hover:text-slate-200 py-0.5 px-2">
+                <div className="flex items-center gap-2 flex-1 select-none">
                   <input
                     type="checkbox"
                     className="rounded border-slate-600 bg-slate-700 text-blue-500 focus:ring-0 w-3 h-3 cursor-pointer"
                     checked={!!data.selectedColumns[col.name]}
                     onChange={(e) => data.onColumnCheck(col.name, e.target.checked)}
+                    onClick={(e) => e.stopPropagation()}
                   />
-                  <span className="truncate">{col.name}</span>
+                  <span 
+                    className="truncate cursor-pointer hover:text-purple-300 transition-colors"
+                    onClick={() => setExpandedColumn(isExpanded ? null : col.name)}
+                  >
+                    {col.name}
+                  </span>
                   {aggregation?.function && (
                     <span className="text-purple-400 text-[9px] font-mono bg-purple-500/10 px-1 rounded">
                       {aggregation.function}
@@ -61,30 +78,28 @@ export const TableNodeComponent = memo(({ data }: NodeProps<TableNode>) => {
                     </span>
                   )}
                   <span className="text-slate-600 text-[10px] ml-auto font-mono">{col.type}</span>
-                </label>
-                {data.selectedColumns[col.name] && (
-                  <button
-                    onClick={() => setExpandedColumn(isExpanded ? null : col.name)}
-                    className={clsx(
-                      "ml-2 text-slate-500 transition-colors p-0.5 rounded",
-                      isExpanded ? "bg-purple-500/20 text-purple-400" : "hover:text-purple-400"
-                    )}
-                    title={isExpanded ? "Close options" : "Column options"}
-                  >
-                    <span className="text-[10px]">{isExpanded ? '✕' : '⚙'}</span>
-                  </button>
-                )}
+                </div>
+                <button
+                  onClick={() => setExpandedColumn(isExpanded ? null : col.name)}
+                  className={clsx(
+                    "ml-2 text-slate-500 transition-colors p-0.5 rounded opacity-0 group-hover:opacity-100",
+                    isExpanded ? "bg-purple-500/20 text-purple-400 !opacity-100" : "hover:text-purple-400"
+                  )}
+                  title={isExpanded ? "Close options" : "Column options"}
+                >
+                  <span className="text-[10px]">{isExpanded ? '✕' : '⚙'}</span>
+                </button>
                 <Handle
                   type="source"
                   position={Position.Right}
                   id={col.name}
-                  className="!w-2 !h-2 !bg-blue-500 !right-[-5px] !opacity-0 group-hover:!opacity-100 transition-opacity"
+                  className="!w-2.5 !h-2.5 !bg-purple-400 !border !border-slate-700 !right-[-5px] !opacity-0 group-hover:!opacity-80 transition-opacity"
                 />
                 <Handle
                   type="target"
                   position={Position.Left}
                   id={col.name}
-                  className="!w-2 !h-2 !bg-blue-500 !left-[-5px] !opacity-0 group-hover:!opacity-100 transition-opacity"
+                  className="!w-2.5 !h-2.5 !bg-purple-400 !border !border-slate-700 !left-[-5px] !opacity-0 group-hover:!opacity-80 transition-opacity"
                 />
               </div>
               
@@ -94,7 +109,9 @@ export const TableNodeComponent = memo(({ data }: NodeProps<TableNode>) => {
                   <select
                     value={aggregation?.function || ''}
                     onChange={(e) => {
-                      const func = e.target.value as ColumnAggregation['function'];
+                      const value = e.target.value;
+                      // If "None" is selected, set function to undefined
+                      const func = value === '' ? undefined : value as ColumnAggregation['function'];
                       data.onColumnAggregation(col.name, {
                         ...aggregation,
                         function: func,

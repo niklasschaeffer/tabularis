@@ -12,7 +12,6 @@ import {
   type Node,
   ReactFlowProvider,
   useReactFlow,
-  type NodeMouseHandler,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { TableNodeComponent, type TableNodeData, type ColumnAggregation } from './TableNode';
@@ -60,7 +59,6 @@ const VisualQueryBuilderContent = () => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>(activeTab?.flowState?.nodes || []);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(activeTab?.flowState?.edges || []);
   const [showSettings, setShowSettings] = useState(true);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
   
   // Query Settings State
   const [whereConditions, setWhereConditions] = useState<WhereCondition[]>([]);
@@ -134,6 +132,12 @@ const VisualQueryBuilderContent = () => {
     );
   }, [setNodes]);
 
+  // Delete node handler
+  const deleteNode = useCallback((nodeId: string) => {
+    setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+    setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
+  }, [setNodes, setEdges]);
+
   // Restore handlers on mount (if loading from state)
   useEffect(() => {
      setNodes((nds) => nds.map(n => ({
@@ -143,9 +147,10 @@ const VisualQueryBuilderContent = () => {
              onColumnCheck: (col: string, checked: boolean) => onColumnCheck(n.id, col, checked),
              onColumnAggregation: (col: string, agg: ColumnAggregation) => onColumnAggregation(n.id, col, agg),
              onColumnAlias: (col: string, alias: string) => onColumnAlias(n.id, col, alias),
+             onDelete: () => deleteNode(n.id),
          }
      })));
-  }, []); // Run once on mount
+  }, [deleteNode, onColumnCheck, onColumnAggregation, onColumnAlias]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist State
   useEffect(() => {
@@ -163,6 +168,8 @@ const VisualQueryBuilderContent = () => {
     const selectedCols: string[] = [];
     const tables: string[] = [];
     const tableAliases: Record<string, string> = {};
+    const nonAggregatedCols: string[] = []; // Track non-aggregated columns for auto GROUP BY
+    let hasAggregation = false; // Track if any column has aggregation
 
     // 1. Collect Tables and Selected Columns
     nodes.forEach((node, index) => {
@@ -181,6 +188,7 @@ const VisualQueryBuilderContent = () => {
               
               // Apply aggregation if present
               if (agg?.function) {
+                hasAggregation = true;
                 if (agg.function === 'COUNT_DISTINCT') {
                   colExpr = `COUNT(DISTINCT ${alias}.${col})`;
                 } else {
@@ -192,6 +200,9 @@ const VisualQueryBuilderContent = () => {
                   colExpr += ` AS ${agg.alias}`;
                 }
               } else {
+                // Track non-aggregated columns for auto GROUP BY
+                nonAggregatedCols.push(`${alias}.${col}`);
+                
                 // Use column alias if present (and no aggregation)
                 if (colAlias?.alias) {
                   colExpr += ` AS ${colAlias.alias}`;
@@ -289,9 +300,14 @@ const VisualQueryBuilderContent = () => {
         .join("\n  ");
     }
 
-    // 4. Add GROUP BY
-    if (groupBy.length > 0) {
-      sql += "\nGROUP BY\n  " + groupBy.join(",\n  ");
+    // 4. Add GROUP BY (auto-generate if there's aggregation, or use manual)
+    // Automatically add non-aggregated columns to GROUP BY if there are any aggregations
+    const finalGroupBy = hasAggregation && nonAggregatedCols.length > 0 
+      ? [...new Set([...nonAggregatedCols, ...groupBy])] // Merge auto + manual, remove duplicates
+      : (groupBy.length > 0 ? groupBy : []); // Use manual GROUP BY if no auto-generation
+    
+    if (finalGroupBy.length > 0) {
+      sql += "\nGROUP BY\n  " + finalGroupBy.join(",\n  ");
     }
 
     // 5. Add HAVING conditions (aggregate)
@@ -336,30 +352,6 @@ const VisualQueryBuilderContent = () => {
     [setEdges],
   );
 
-  const onNodeContextMenu: NodeMouseHandler = useCallback((event, node) => {
-    event.preventDefault();
-    setContextMenu({
-      x: event.clientX,
-      y: event.clientY,
-      nodeId: node.id,
-    });
-  }, []);
-
-  const deleteNode = useCallback((nodeId: string) => {
-    setNodes((nds) => nds.filter((n) => n.id !== nodeId));
-    setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
-    setContextMenu(null);
-  }, [setNodes, setEdges]);
-
-  // Close context menu on click outside
-  useEffect(() => {
-    const handleClick = () => setContextMenu(null);
-    if (contextMenu) {
-      window.addEventListener('click', handleClick);
-      return () => window.removeEventListener('click', handleClick);
-    }
-  }, [contextMenu]);
-
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
@@ -394,6 +386,7 @@ const VisualQueryBuilderContent = () => {
             onColumnCheck: (col: string, checked: boolean) => onColumnCheck(newNodeId, col, checked),
             onColumnAggregation: (col: string, agg: ColumnAggregation) => onColumnAggregation(newNodeId, col, agg),
             onColumnAlias: (col: string, alias: string) => onColumnAlias(newNodeId, col, alias),
+            onDelete: () => deleteNode(newNodeId),
           },
         };
 
@@ -402,7 +395,7 @@ const VisualQueryBuilderContent = () => {
         console.error("Failed to fetch columns", e);
       }
     },
-    [activeConnectionId, screenToFlowPosition, setNodes, onColumnCheck],
+    [activeConnectionId, screenToFlowPosition, setNodes, onColumnCheck, onColumnAggregation, onColumnAlias, deleteNode],
   );
 
   // Get all available columns from all nodes
@@ -429,7 +422,6 @@ const VisualQueryBuilderContent = () => {
           onConnect={onConnect}
           onDragOver={onDragOver}
           onDrop={onDrop}
-          onNodeContextMenu={onNodeContextMenu}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
@@ -465,27 +457,6 @@ const VisualQueryBuilderContent = () => {
           />
           <Background gap={16} size={1} color="#1e293b" />
         </ReactFlow>
-
-        {/* Context Menu */}
-        {contextMenu && (
-          <div
-            style={{
-              position: 'absolute',
-              top: contextMenu.y,
-              left: contextMenu.x,
-              zIndex: 1000,
-            }}
-            className="bg-slate-800 border border-slate-700 rounded-lg shadow-2xl py-1 min-w-[160px]"
-          >
-            <button
-              onClick={() => deleteNode(contextMenu.nodeId)}
-              className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-slate-700 transition-colors flex items-center gap-2"
-            >
-              <X size={14} />
-              Delete Table
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Settings Sidebar */}
