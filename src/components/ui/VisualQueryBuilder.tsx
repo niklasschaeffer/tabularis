@@ -111,7 +111,7 @@ const VisualQueryBuilderContent = () => {
   }, [setNodes]);
 
   // Handle Column Alias
-  const onColumnAlias = useCallback((nodeId: string, column: string, alias: string) => {
+  const onColumnAlias = useCallback((nodeId: string, column: string, alias: string, order?: number) => {
     setNodes((nds) =>
       nds.map((node) => {
         if (node.id === nodeId) {
@@ -122,7 +122,7 @@ const VisualQueryBuilderContent = () => {
               ...data,
               columnAliases: {
                 ...data.columnAliases,
-                [column]: { alias },
+                [column]: { alias, order },
               },
             },
           };
@@ -146,7 +146,7 @@ const VisualQueryBuilderContent = () => {
              ...(n.data as TableNodeData),
              onColumnCheck: (col: string, checked: boolean) => onColumnCheck(n.id, col, checked),
              onColumnAggregation: (col: string, agg: ColumnAggregation) => onColumnAggregation(n.id, col, agg),
-             onColumnAlias: (col: string, alias: string) => onColumnAlias(n.id, col, alias),
+             onColumnAlias: (col: string, alias: string, order?: number) => onColumnAlias(n.id, col, alias, order),
              onDelete: () => deleteNode(n.id),
          }
      })));
@@ -165,7 +165,7 @@ const VisualQueryBuilderContent = () => {
   useEffect(() => {
     if (!activeTabId) return;
 
-    const selectedCols: string[] = [];
+    const selectedColsWithOrder: { expr: string; order: number; colName: string }[] = [];
     const tables: string[] = [];
     const tableAliases: Record<string, string> = {};
     const nonAggregatedCols: string[] = []; // Track non-aggregated columns for auto GROUP BY
@@ -185,6 +185,7 @@ const VisualQueryBuilderContent = () => {
               const agg = data.columnAggregations?.[col];
               const colAlias = data.columnAliases?.[col];
               let colExpr = `${alias}.${col}`;
+              let order = 999; // Default order for unspecified
               
               // Apply aggregation if present
               if (agg?.function) {
@@ -199,6 +200,11 @@ const VisualQueryBuilderContent = () => {
                 if (agg?.alias) {
                   colExpr += ` AS ${agg.alias}`;
                 }
+                
+                // Get order from aggregation
+                if (agg?.order !== undefined) {
+                  order = agg.order;
+                }
               } else {
                 // Track non-aggregated columns for auto GROUP BY
                 nonAggregatedCols.push(`${alias}.${col}`);
@@ -207,15 +213,24 @@ const VisualQueryBuilderContent = () => {
                 if (colAlias?.alias) {
                   colExpr += ` AS ${colAlias.alias}`;
                 }
+                
+                // Get order from column alias
+                if (colAlias?.order !== undefined) {
+                  order = colAlias.order;
+                }
               }
               
-              selectedCols.push(colExpr);
+              selectedColsWithOrder.push({ expr: colExpr, order, colName: col });
             }
         });
       }
     });
 
     if (nodes.length === 0) return;
+
+    // Sort columns by order
+    selectedColsWithOrder.sort((a, b) => a.order - b.order);
+    const selectedCols = selectedColsWithOrder.map(c => c.expr);
 
     let sql = "SELECT\n";
     sql += selectedCols.length > 0 ? "  " + selectedCols.join(",\n  ") : "  *";
@@ -385,7 +400,7 @@ const VisualQueryBuilderContent = () => {
             columnAliases: {},
             onColumnCheck: (col: string, checked: boolean) => onColumnCheck(newNodeId, col, checked),
             onColumnAggregation: (col: string, agg: ColumnAggregation) => onColumnAggregation(newNodeId, col, agg),
-            onColumnAlias: (col: string, alias: string) => onColumnAlias(newNodeId, col, alias),
+            onColumnAlias: (col: string, alias: string, order?: number) => onColumnAlias(newNodeId, col, alias, order),
             onDelete: () => deleteNode(newNodeId),
           },
         };

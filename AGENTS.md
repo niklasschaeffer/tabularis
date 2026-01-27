@@ -188,8 +188,8 @@ Adhere to the rules defined in the [rules directory](./.rules/):
     - Multi-statement execution (running all queries in a tab).
     - Database export/dump.
 
-### Session 19: Visual Query Builder
-- **Status:** Feature Complete.
+### Session 19: Visual Query Builder (Experimental)
+- **Status:** Feature Complete (Experimental).
 - **Actions:**
     - **Frontend:**
         - **Visual Query Builder:** Implemented DataGrip-style visual query builder using ReactFlow.
@@ -200,12 +200,13 @@ Adhere to the rules defined in the [rules directory](./.rules/):
             - WHERE/HAVING conditions builder with:
                 - AND/OR toggle buttons between conditions
                 - Aggregate function checkbox to convert WHERE to HAVING
-                - Column/operator/value inputs
+                - Column/operator/value inputs with inline delete button
                 - Support for LIKE, IN, comparison operators
             - GROUP BY clause with column selection.
             - ORDER BY clause with column and direction (ASC ↑ / DESC ↓).
             - LIMIT input control.
         - **Aggregate Functions:** Implemented per-column aggregation support (COUNT, COUNT DISTINCT, SUM, AVG, MIN, MAX) with optional aliases.
+        - **Auto GROUP BY:** Automatic GROUP BY generation when using aggregate functions - non-aggregated columns are automatically added to GROUP BY clause.
         - **Dark Theme Styling:** Customized ReactFlow controls, minimap, and edges for dark theme consistency.
             - Fixed select dropdown visibility (dark background with light text)
             - Improved spacing and padding throughout
@@ -215,14 +216,23 @@ Adhere to the rules defined in the [rules directory](./.rules/):
             - JOIN clauses with proper relationship detection and type selection.
             - WHERE clauses with AND/OR logic.
             - HAVING clauses for aggregate conditions.
-            - GROUP BY, ORDER BY, and LIMIT clauses.
+            - Automatic GROUP BY for mixed aggregate/non-aggregate queries.
+            - ORDER BY and LIMIT clauses.
             - Aggregate functions with aliases.
         - **Tab Integration:** Added new tab type `query_builder` with Network icon and "New Visual Query" button.
         - **Run Button Integration:** Enhanced Run button to execute generated SQL from query builder directly.
+        - **UX Improvements:**
+            - Click column name to expand/collapse options panel
+            - Delete table button positioned in top-right corner of each node
+            - Reduced handle visibility with purple theme for cleaner appearance
+            - Lateral padding on column rows for better spacing
+            - Zoom controls refined (min: 0.1, max: 2, no excessive zoom on drag)
+            - Real-time query preview in Run dropdown
     - **Types:**
         - Added `FlowState` interface with proper ReactFlow types.
         - Extended `Tab` interface to support `flowState` for persisting query builder state.
         - Enhanced `WhereCondition` with `logicalOperator` and `isAggregate` fields.
+        - Refined `ColumnAggregation` to exclude empty string (undefined when no aggregation).
     - **Components:**
         - Created `VisualQueryBuilder.tsx` - Main query builder component with ReactFlow canvas.
         - Created `TableNode.tsx` - Custom node component for database tables with aggregate function UI.
@@ -231,3 +241,18 @@ Adhere to the rules defined in the [rules directory](./.rules/):
         - Added ReactFlow dark theme overrides to `index.css`.
         - Fixed select dropdown option visibility.
         - Styled controls, minimap, edges, and custom scrollbars.
+    - **Bug Fixes:**
+        - Fixed Run button not working in Visual Query Builder
+        - Fixed Run dropdown showing stale queries - now updates in real-time
+        - Fixed aggregate functions not generating correct GROUP BY clauses
+        - Fixed empty string aggregation type causing incorrect SQL generation
+
+### Session 20: Visual Query Builder Polish & Saved Queries
+- **Status:** Maintenance / UX Polish.
+- **Actions:**
+    - **Saved Queries:**
+        - Tab titles now display saved query names instead of generic "Console"
+        - Query name passed through navigation state when opening from sidebar
+    - **Debug:**
+        - Added console logging for Visual Query Builder executed queries (visible only in browser console)
+

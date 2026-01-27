@@ -6,10 +6,12 @@ import clsx from 'clsx';
 export interface ColumnAggregation {
   function?: 'COUNT' | 'SUM' | 'AVG' | 'MIN' | 'MAX' | 'COUNT_DISTINCT';
   alias?: string;
+  order?: number; // Position in SELECT clause
 }
 
 export interface ColumnAlias {
   alias?: string;
+  order?: number; // Position in SELECT clause
 }
 
 export interface TableNodeData extends Record<string, unknown> {
@@ -20,7 +22,7 @@ export interface TableNodeData extends Record<string, unknown> {
   columnAliases: Record<string, ColumnAlias>;
   onColumnCheck: (column: string, checked: boolean) => void;
   onColumnAggregation: (column: string, aggregation: ColumnAggregation) => void;
-  onColumnAlias: (column: string, alias: string) => void;
+  onColumnAlias: (column: string, alias: string, order?: number) => void;
   onDelete?: () => void;
 }
 
@@ -104,7 +106,7 @@ export const TableNodeComponent = memo(({ data }: NodeProps<TableNode>) => {
               </div>
               
               {isExpanded && (
-                <div className="ml-5 mt-1 p-2 bg-slate-900 rounded border border-slate-700 space-y-1">
+                <div className="ml-5 mt-1 p-2 bg-slate-900 rounded border border-slate-700 space-y-2 relative z-50 shadow-2xl">
                   <div className="text-[10px] text-slate-400 font-semibold mb-1">AGGREGATION</div>
                   <select
                     value={aggregation?.function || ''}
@@ -143,6 +145,21 @@ export const TableNodeComponent = memo(({ data }: NodeProps<TableNode>) => {
                         }}
                         className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-[10px] text-slate-300 placeholder-slate-500"
                       />
+                      <div className="text-[10px] text-slate-400 font-semibold mb-1 mt-2">POSITION</div>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="e.g., 1"
+                        value={aggregation?.order || ''}
+                        onChange={(e) => {
+                          const order = e.target.value ? parseInt(e.target.value) : undefined;
+                          data.onColumnAggregation(col.name, {
+                            ...aggregation,
+                            order,
+                          });
+                        }}
+                        className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-[10px] text-slate-300 placeholder-slate-500"
+                      />
                     </>
                   )}
                   
@@ -154,7 +171,19 @@ export const TableNodeComponent = memo(({ data }: NodeProps<TableNode>) => {
                         placeholder="e.g., user_name"
                         value={columnAlias?.alias || ''}
                         onChange={(e) => {
-                          data.onColumnAlias(col.name, e.target.value);
+                          data.onColumnAlias(col.name, e.target.value, columnAlias?.order);
+                        }}
+                        className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-[10px] text-slate-300 placeholder-slate-500"
+                      />
+                      <div className="text-[10px] text-slate-400 font-semibold mb-1 mt-2">POSITION</div>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="e.g., 1"
+                        value={columnAlias?.order || ''}
+                        onChange={(e) => {
+                          const order = e.target.value ? parseInt(e.target.value) : undefined;
+                          data.onColumnAlias(col.name, columnAlias?.alias || '', order);
                         }}
                         className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-[10px] text-slate-300 placeholder-slate-500"
                       />

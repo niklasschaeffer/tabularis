@@ -16,9 +16,11 @@ export const Settings = () => {
     { label: 'Create New Table Wizard', done: true },
     { label: 'Data Export (CSV/JSON)', done: true },
     { label: 'Result Limiting & Pagination', done: true },
-    { label: 'Visual Query Builder', done: false },
-    { label: 'Multiple Query Tabs', done: false },
+    { label: 'Multiple Query Tabs', done: true },
+    { label: 'Saved Queries & Persistence', done: true },
+    { label: 'Visual Query Builder (Experimental)', done: true },
     { label: 'Dark/Light Theme Toggle', done: false },
+    { label: 'Database Export/Dump', done: false },
   ];
 
   return (
@@ -114,7 +116,7 @@ export const Settings = () => {
                       </a>
                       <div className="flex items-center gap-2 bg-blue-900/30 text-blue-300 px-4 py-2 rounded-lg border border-blue-500/30">
                           <span className="text-xs font-bold uppercase tracking-wider">Version</span>
-                          <span className="font-mono font-bold">0.3.0 (Beta)</span>
+                          <span className="font-mono font-bold">0.4.0 (Beta)</span>
                       </div>
                   </div>
               </div>
