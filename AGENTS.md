@@ -256,3 +256,23 @@ Adhere to the rules defined in the [rules directory](./.rules/):
     - **Debug:**
         - Added console logging for Visual Query Builder executed queries (visible only in browser console)
 
+### Session 21: Pagination Controls Restoration & Scope Fix
+- **Status:** Bug Fix Complete.
+- **Actions:**
+    - **Backend:**
+        - **Scope Fix:** Moved `truncated` variable declaration **before** pagination block in all drivers (MySQL, PostgreSQL, SQLite).
+        - **Root Cause:** Variable was declared inside streaming block but being set in pagination block, causing compile error.
+        - **Solution:** Declared `let mut truncated = false;` immediately after `manual_limit` declaration (before `if is_select` block).
+        - **Effect:** `truncated` flag now correctly set to `total_rows > page_size` for paginated SELECT queries.
+    - **Frontend:**
+        - **Pagination UI:** Restored full pagination controls in results footer:
+            - First/Prev/Next/Last buttons with chevron icons
+            - Clickable page display for quick page jumping (Enter to confirm, Escape to cancel)
+            - Proper disabled states for boundary pages
+        - **Truncated Badge:** Re-added "Truncated" badge logic for non-paginated queries that hit result limit
+        - **Badge Condition:** Only shows when `truncated === true` AND `pagination` is null (prevents duplication with pagination controls)
+    - **Cleanup:**
+        - Removed debug console.log statements from `Editor.tsx`
+    - **Git:**
+        - Committed: "fix: restore pagination controls and fix truncated flag scope"
+
