@@ -152,6 +152,7 @@ pub async fn execute_query(params: &ConnectionParams, query: &str, limit: Option
     let mut pagination: Option<Pagination> = None;
     let final_query: String;
     let mut manual_limit = limit;
+    let mut truncated = false;
 
     if is_select && limit.is_some() {
         let l = limit.unwrap();
@@ -173,6 +174,9 @@ pub async fn execute_query(params: &ConnectionParams, query: &str, limit: Option
             page_size: l,
             total_rows,
         });
+        
+        // Set truncated if there are more results than shown
+        truncated = total_rows > l as u64;
 
         // Wrap query for pagination
         final_query = format!("SELECT * FROM ({}) as data_wrapper LIMIT {} OFFSET {}", query, l, offset);
@@ -186,7 +190,6 @@ pub async fn execute_query(params: &ConnectionParams, query: &str, limit: Option
     
     let mut columns: Vec<String> = Vec::new();
     let mut json_rows = Vec::new();
-    let mut truncated = false;
     
     use futures::stream::StreamExt; // Correct import
 

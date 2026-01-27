@@ -13,6 +13,10 @@ import {
   Table as TableIcon,
   FileCode,
   Network,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -67,6 +71,8 @@ export const Editor = () => {
   const [selectableQueries, setSelectableQueries] = useState<string[]>([]);
   const [isQuerySelectionModalOpen, setIsQuerySelectionModalOpen] = useState(false);
   const [isRunDropdownOpen, setIsRunDropdownOpen] = useState(false);
+  const [isEditingPage, setIsEditingPage] = useState(false);
+  const [tempPage, setTempPage] = useState("1");
   
   const tabsRef = useRef<Tab[]>([]);
   const activeTabIdRef = useRef<string | null>(null);
@@ -412,7 +418,91 @@ export const Editor = () => {
             {activeTab.error ? <div className="p-4 text-red-400 font-mono text-sm bg-red-900/10 h-full overflow-auto whitespace-pre-wrap">Error: {activeTab.error}</div> : activeTab.result ? (
               <div className="flex-1 min-h-0 flex flex-col">
                 <div className="p-2 bg-slate-900 text-xs text-slate-400 border-b border-slate-800 flex justify-between items-center shrink-0">
-                  <div className="flex items-center gap-4"><span>{activeTab.result.rows.length} rows retrieved {activeTab.executionTime !== null && <span className="text-slate-500 ml-2 font-mono">({formatDuration(activeTab.executionTime)})</span>}</span></div>
+                  <div className="flex items-center gap-4">
+                    <span>{activeTab.result.rows.length} rows retrieved {activeTab.executionTime !== null && <span className="text-slate-500 ml-2 font-mono">({formatDuration(activeTab.executionTime)})</span>}</span>
+                    {activeTab.result.truncated && !activeTab.result.pagination && (
+                      <span className="px-2 py-0.5 bg-yellow-900/30 text-yellow-400 rounded text-[10px] font-semibold uppercase tracking-wide border border-yellow-500/30">
+                        Truncated (Limit: {settings.queryLimit})
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Pagination Controls */}
+                  {activeTab.result.pagination && (
+                    <div className="flex items-center gap-1 bg-slate-800 rounded border border-slate-700">
+                      <button 
+                        disabled={activeTab.result.pagination.page === 1 || activeTab.isLoading}
+                        onClick={() => runQuery(activeTab.query, 1)}
+                        className="p-1 hover:bg-slate-700 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="First Page"
+                      >
+                        <ChevronsLeft size={14} />
+                      </button>
+                      <button 
+                        disabled={activeTab.result.pagination.page === 1 || activeTab.isLoading}
+                        onClick={() => runQuery(activeTab.query, activeTab.result!.pagination!.page - 1)}
+                        className="p-1 hover:bg-slate-700 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border-l border-slate-700"
+                        title="Previous Page"
+                      >
+                        <ChevronLeft size={14} />
+                      </button>
+
+                      <div 
+                        className="px-3 text-slate-300 text-xs font-medium cursor-pointer hover:bg-slate-700 transition-colors min-w-[80px] text-center py-1"
+                        onClick={() => {
+                          setIsEditingPage(true);
+                          setTempPage(String(activeTab.result!.pagination!.page));
+                        }}
+                        title="Click to jump to page"
+                      >
+                        {isEditingPage ? (
+                          <input
+                            autoFocus
+                            type="text"
+                            className="w-full bg-transparent text-center focus:outline-none text-white p-0 m-0 border-none h-full"
+                            value={tempPage}
+                            onChange={(e) => setTempPage(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const newPage = parseInt(tempPage);
+                                const maxPage = Math.ceil(activeTab.result!.pagination!.total_rows / activeTab.result!.pagination!.page_size);
+                                if (!isNaN(newPage) && newPage >= 1 && newPage <= maxPage) {
+                                   runQuery(activeTab.query, newPage);
+                                }
+                                setIsEditingPage(false);
+                              } else if (e.key === 'Escape') {
+                                setIsEditingPage(false);
+                              }
+                              e.stopPropagation();
+                            }}
+                            onBlur={() => setIsEditingPage(false)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <>
+                            Page {activeTab.result.pagination.page} of {Math.ceil(activeTab.result.pagination.total_rows / activeTab.result.pagination.page_size)}
+                          </>
+                        )}
+                      </div>
+
+                      <button 
+                        disabled={activeTab.result.pagination.page * activeTab.result.pagination.page_size >= activeTab.result.pagination.total_rows || activeTab.isLoading}
+                        onClick={() => runQuery(activeTab.query, activeTab.result!.pagination!.page + 1)}
+                        className="p-1 hover:bg-slate-700 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border-l border-slate-700"
+                        title="Next Page"
+                      >
+                        <ChevronRight size={14} />
+                      </button>
+                      <button 
+                        disabled={activeTab.result.pagination.page * activeTab.result.pagination.page_size >= activeTab.result.pagination.total_rows || activeTab.isLoading}
+                        onClick={() => runQuery(activeTab.query, Math.ceil(activeTab.result!.pagination!.total_rows / activeTab.result!.pagination!.page_size))}
+                        className="p-1 hover:bg-slate-700 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border-l border-slate-700"
+                        title="Last Page"
+                      >
+                        <ChevronsRight size={14} />
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex-1 min-h-0 overflow-hidden"><DataGrid columns={activeTab.result.columns} data={activeTab.result.rows} tableName={activeTab.activeTable} pkColumn={activeTab.pkColumn} connectionId={activeConnectionId} onRefresh={handleRefresh} /></div>
               </div>
