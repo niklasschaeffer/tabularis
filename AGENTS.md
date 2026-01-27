@@ -1,5 +1,9 @@
 # AGENTS.md
 
+## Directives
+1. **Always Update Project Log:** Every session must end with an update to the "Project Log" section below, summarizing the status and actions taken.
+2. **Language:** Use **English** for all code comments, documentation, and commit messages.
+
 ## Project Log
 
 ### Session 1: Initialization & GUI Skeleton

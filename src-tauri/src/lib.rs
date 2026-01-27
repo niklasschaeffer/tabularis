@@ -1,5 +1,11 @@
 pub mod commands;
 pub mod ssh_tunnel;
+pub mod models;
+pub mod drivers {
+    pub mod mysql;
+    pub mod postgres;
+    pub mod sqlite;
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
