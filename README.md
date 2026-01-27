@@ -76,7 +76,7 @@ Connection profiles are saved locally in `connections.json` at:
 ### Prerequisites
 - Node.js (v18+)
 - Rust (Stable) & Cargo
-- Linux dependencies (if on Linux): `libwebkit2gtk-4.0-dev`, `build-essential`, `libssl-dev`.
+- Linux dependencies (if on Linux): `libwebkit2gtk-4.1-dev`, `build-essential`, `libssl-dev`.
 
 ### Setup
 1. Install dependencies:
