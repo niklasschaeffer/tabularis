@@ -1,6 +1,19 @@
 # debba.sql
 
+![](https://img.shields.io/github/release/debba/debba.sql.svg?style=flat)
+![](https://img.shields.io/github/downloads/debba/debba.sql/total.svg?style=flat)
+![Build & Release](https://github.com/debba/debba.sql/workflows/Build%20&%20Release/badge.svg)
+[![Known Vulnerabilities](https://snyk.io//test/github/debba/debba.sql/badge.svg?targetFile=package.json)](https://snyk.io//test/github/debba/debba.sql?targetFile=package.json)
+
 A lightweight, developer-focused database management tool, built with Tauri and React.
+
+## Release Download:
+
+<!-- DOWNLOAD_SECTION_START -->
+
+[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/debba/debba.sql/releases/download/v0.3.0/debba.sql_0.3.0_x64-setup.exe) [![macOS](https://img.shields.io/badge/macOS-Download-black?logo=apple)](https://github.com/debba/debba.sql/releases/download/v0.3.0/debba.sql_0.3.0_x64.dmg) [![Linux](https://img.shields.io/badge/Linux-Download-green?logo=linux)](https://github.com/debba/debba.sql/releases/download/v0.3.0/debba.sql_0.3.0_amd64.AppImage)
+
+<!-- DOWNLOAD_SECTION_END -->
 
 > 💡 **Origin Story:** This project was born from a **vibe coding** session — an experiment in fluid, agent-assisted development to build a functional tool from scratch in record time.
 
