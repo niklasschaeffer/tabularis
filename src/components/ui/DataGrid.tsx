@@ -23,8 +23,53 @@ interface DataGridProps {
 export const DataGrid = ({ columns, data, tableName, pkColumn, connectionId, onRefresh }: DataGridProps) => {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; row: unknown[] } | null>(null);
   const [editingCell, setEditingCell] = useState<{ rowIndex: number; colIndex: number; value: unknown } | null>(null);
+  const [selectedRowIndices, setSelectedRowIndices] = useState<Set<number>>(new Set());
+  const [lastSelectedRowIndex, setLastSelectedRowIndex] = useState<number | null>(null);
   const [editRowModalData, setEditRowModalData] = useState<unknown[] | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
+
+  const handleRowClick = (index: number, event: React.MouseEvent) => {
+    const newSelected = new Set(selectedRowIndices);
+
+    if (event.shiftKey && lastSelectedRowIndex !== null) {
+      // Range selection
+      const start = Math.min(lastSelectedRowIndex, index);
+      const end = Math.max(lastSelectedRowIndex, index);
+      
+      // If NOT Ctrl/Cmd, clear previous selection first (standard OS behavior)
+      if (!event.ctrlKey && !event.metaKey) {
+          newSelected.clear();
+      }
+
+      for (let i = start; i <= end; i++) {
+        newSelected.add(i);
+      }
+    } else if (event.ctrlKey || event.metaKey) {
+      // Toggle selection
+      if (newSelected.has(index)) {
+        newSelected.delete(index);
+      } else {
+        newSelected.add(index);
+      }
+      setLastSelectedRowIndex(index);
+    } else {
+      // Single selection
+      newSelected.clear();
+      newSelected.add(index);
+      setLastSelectedRowIndex(index);
+    }
+
+    setSelectedRowIndices(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedRowIndices.size === data.length) {
+      setSelectedRowIndices(new Set());
+    } else {
+      const allIndices = new Set(data.map((_, i) => i));
+      setSelectedRowIndices(allIndices);
+    }
+  };
 
   useEffect(() => {
     if (editingCell && editInputRef.current) {
@@ -153,6 +198,12 @@ export const DataGrid = ({ columns, data, tableName, pkColumn, connectionId, onR
         <thead className="bg-slate-950 sticky top-0 z-10 shadow-sm">
           {table.getHeaderGroups().map(headerGroup => (
             <tr key={headerGroup.id}>
+              <th 
+                onClick={handleSelectAll}
+                className="px-2 py-2 text-xs font-semibold text-slate-500 border-b border-r border-slate-800 bg-slate-950 sticky left-0 z-20 text-center select-none w-[50px] min-w-[50px] cursor-pointer hover:bg-slate-900"
+              >
+                #
+              </th>
               {headerGroup.headers.map(header => (
                 <th 
                   key={header.id}
@@ -168,39 +219,56 @@ export const DataGrid = ({ columns, data, tableName, pkColumn, connectionId, onR
           ))}
         </thead>
         <tbody>
-          {table.getRowModel().rows.map((row, rowIndex) => (
-            <tr 
-              key={row.id} 
-              className="hover:bg-slate-800/50 transition-colors group"
-              onContextMenu={(e) => handleContextMenu(e, row.original)}
-            >
-              {row.getVisibleCells().map((cell, colIndex) => {
-                const isEditing = editingCell?.rowIndex === rowIndex && editingCell?.colIndex === colIndex;
-                
-                return (
-                  <td 
-                    key={cell.id}
-                    onDoubleClick={() => handleCellDoubleClick(rowIndex, colIndex, cell.getValue())}
-                    className="px-4 py-1.5 text-sm text-slate-300 border-b border-r border-slate-800 last:border-r-0 whitespace-nowrap font-mono truncate max-w-[300px] cursor-text"
-                    title={!isEditing ? String(cell.getValue()) : ''}
-                  >
-                    {isEditing ? (
-                        <input
-                            ref={editInputRef}
-                            value={String(editingCell.value ?? '')}
-                            onChange={e => setEditingCell(prev => prev ? ({ ...prev, value: e.target.value }) : null)}
-                            onBlur={handleEditCommit}
-                            onKeyDown={handleKeyDown}
-                            className="w-full bg-slate-950 text-white border-none outline-none p-0 m-0 font-mono"
-                        />
-                    ) : (
-                        flexRender(cell.column.columnDef.cell, cell.getContext())
-                    )}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
+          {table.getRowModel().rows.map((row, rowIndex) => {
+            const isSelected = selectedRowIndices.has(rowIndex);
+            return (
+              <tr 
+                key={row.id} 
+                className={`transition-colors group ${isSelected ? 'bg-blue-900/20' : 'hover:bg-slate-800/50'}`}
+                onContextMenu={(e) => handleContextMenu(e, row.original)}
+                onClick={(e) => handleRowClick(rowIndex, e)}
+              >
+                <td 
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent double trigger if row click also fires (though here it's fine to just let row handle it, but for clarity let's use the handler directly on the cell if needed, but row click is better)
+                    handleRowClick(rowIndex, e);
+                  }}
+                  className={`px-2 py-1.5 text-xs text-center border-b border-r border-slate-800 sticky left-0 z-10 cursor-pointer select-none w-[50px] min-w-[50px] ${
+                    isSelected 
+                      ? 'bg-blue-900/40 text-blue-200 font-bold' 
+                      : 'bg-slate-950 text-slate-500 hover:bg-slate-800'
+                  }`}
+                >
+                  {rowIndex + 1}
+                </td>
+                {row.getVisibleCells().map((cell, colIndex) => {
+                  const isEditing = editingCell?.rowIndex === rowIndex && editingCell?.colIndex === colIndex;
+                  
+                  return (
+                    <td 
+                      key={cell.id}
+                      onDoubleClick={() => handleCellDoubleClick(rowIndex, colIndex, cell.getValue())}
+                      className="px-4 py-1.5 text-sm text-slate-300 border-b border-r border-slate-800 last:border-r-0 whitespace-nowrap font-mono truncate max-w-[300px] cursor-text"
+                      title={!isEditing ? String(cell.getValue()) : ''}
+                    >
+                      {isEditing ? (
+                          <input
+                              ref={editInputRef}
+                              value={String(editingCell.value ?? '')}
+                              onChange={e => setEditingCell(prev => prev ? ({ ...prev, value: e.target.value }) : null)}
+                              onBlur={handleEditCommit}
+                              onKeyDown={handleKeyDown}
+                              className="w-full bg-slate-950 text-white border-none outline-none p-0 m-0 font-mono"
+                          />
+                      ) : (
+                          flexRender(cell.column.columnDef.cell, cell.getContext())
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 
