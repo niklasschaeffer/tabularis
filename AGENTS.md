@@ -63,3 +63,9 @@
 - **Actions:**
     - **Connection Safety:** Prevent entering SQL Editor when connection fails.
     - **Error Feedback:** Show user-friendly errors on connection failure.
+
+### Session 8: Bug Fixes & Driver Improvements
+- **Status:** Maintenance / Bug Fixes.
+- **Actions:**
+    - **Data Type Handling:** Fixed incomplete pattern matching in `map_rows` for MySQL, PostgreSQL, and SQLite drivers.
+    - **Backend:** Added support for `i8`, `i16`, `u8`, `u16`, `u32`, `u64`, and `f32` types to ensure correct value retrieval and prevent data loss or incorrect `Null` values.

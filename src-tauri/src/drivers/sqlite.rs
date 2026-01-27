@@ -135,7 +135,15 @@ fn map_rows(rows: Vec<SqliteRow>) -> Result<QueryResult, String> {
         for (i, _) in row.columns().iter().enumerate() {
             // SQLite is flexible
             let val = if let Ok(v) = row.try_get::<i64, _>(i) { serde_json::Value::Number(v.into()) }
+            else if let Ok(v) = row.try_get::<i32, _>(i) { serde_json::Value::Number(v.into()) }
+            else if let Ok(v) = row.try_get::<i16, _>(i) { serde_json::Value::Number(v.into()) }
+            else if let Ok(v) = row.try_get::<i8, _>(i) { serde_json::Value::Number(v.into()) }
+            else if let Ok(v) = row.try_get::<u64, _>(i) { serde_json::Value::Number(v.into()) }
+            else if let Ok(v) = row.try_get::<u32, _>(i) { serde_json::Value::Number(v.into()) }
+            else if let Ok(v) = row.try_get::<u16, _>(i) { serde_json::Value::Number(v.into()) }
+            else if let Ok(v) = row.try_get::<u8, _>(i) { serde_json::Value::Number(v.into()) }
             else if let Ok(v) = row.try_get::<f64, _>(i) { serde_json::Number::from_f64(v).map(serde_json::Value::Number).unwrap_or(serde_json::Value::Null) }
+            else if let Ok(v) = row.try_get::<f32, _>(i) { serde_json::Number::from_f64(v as f64).map(serde_json::Value::Number).unwrap_or(serde_json::Value::Null) }
             else if let Ok(v) = row.try_get::<String, _>(i) { serde_json::Value::String(v) }
             else if let Ok(v) = row.try_get::<bool, _>(i) { serde_json::Value::Bool(v) }
             else { serde_json::Value::Null };
