@@ -1,8 +1,8 @@
 pub mod commands;
-pub mod ssh_tunnel;
-pub mod saved_queries;
-pub mod models;
 pub mod keychain_utils;
+pub mod models;
+pub mod saved_queries;
+pub mod ssh_tunnel;
 pub mod drivers {
     pub mod common;
     pub mod mysql;
@@ -16,6 +16,7 @@ pub fn run() {
     sqlx::any::install_default_drivers();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_log::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

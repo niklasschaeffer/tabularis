@@ -1,60 +1,103 @@
+use crate::drivers::common::extract_mysql_value;
+use crate::models::{
+    ConnectionParams, ForeignKey, Index, Pagination, QueryResult, TableColumn, TableInfo,
+};
 use sqlx::{Column, Connection, Row};
 use urlencoding::encode;
-use crate::models::{ConnectionParams, TableInfo, TableColumn, QueryResult, Pagination, ForeignKey, Index};
-use crate::drivers::common::extract_mysql_value;
 
 pub async fn get_tables(params: &ConnectionParams) -> Result<Vec<TableInfo>, String> {
     let user = encode(params.username.as_deref().unwrap_or_default());
     let pass = encode(params.password.as_deref().unwrap_or_default());
-    let url = format!("mysql://{}:{}@{}:{}/{}", 
-        user, pass,
-        params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(3306), params.database);
-    let mut conn = sqlx::mysql::MySqlConnection::connect(&url).await.map_err(|e| e.to_string())?;
-    let rows = sqlx::query("SELECT table_name as name FROM information_schema.tables WHERE table_schema = DATABASE()")
-        .fetch_all(&mut conn).await.map_err(|e| e.to_string())?;
-    Ok(rows.iter().map(|r| TableInfo { name: r.try_get("name").unwrap_or_default() }).collect())
+    let url = format!(
+        "mysql://{}:{}@{}:{}/{}",
+        user,
+        pass,
+        params.host.as_deref().unwrap_or("localhost"),
+        params.port.unwrap_or(3306),
+        params.database
+    );
+    let mut conn = sqlx::mysql::MySqlConnection::connect(&url)
+        .await
+        .map_err(|e| e.to_string())?;
+    let rows = sqlx::query(
+        "SELECT table_name as name FROM information_schema.tables WHERE table_schema = DATABASE()",
+    )
+    .fetch_all(&mut conn)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(rows
+        .iter()
+        .map(|r| TableInfo {
+            name: r.try_get("name").unwrap_or_default(),
+        })
+        .collect())
 }
 
-pub async fn get_columns(params: &ConnectionParams, table_name: &str) -> Result<Vec<TableColumn>, String> {
+pub async fn get_columns(
+    params: &ConnectionParams,
+    table_name: &str,
+) -> Result<Vec<TableColumn>, String> {
     let user = encode(params.username.as_deref().unwrap_or_default());
     let pass = encode(params.password.as_deref().unwrap_or_default());
-    let url = format!("mysql://{}:{}@{}:{}/{}", 
-        user, pass,
-        params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(3306), params.database);
-    let mut conn = sqlx::mysql::MySqlConnection::connect(&url).await.map_err(|e| e.to_string())?;
-    
+    let url = format!(
+        "mysql://{}:{}@{}:{}/{}",
+        user,
+        pass,
+        params.host.as_deref().unwrap_or("localhost"),
+        params.port.unwrap_or(3306),
+        params.database
+    );
+    let mut conn = sqlx::mysql::MySqlConnection::connect(&url)
+        .await
+        .map_err(|e| e.to_string())?;
+
     let query = r#"
         SELECT column_name, data_type, column_key, is_nullable, extra 
         FROM information_schema.columns 
         WHERE table_schema = DATABASE() AND table_name = ?
         ORDER BY ordinal_position
     "#;
-    
+
     let rows = sqlx::query(query)
         .bind(table_name)
-        .fetch_all(&mut conn).await.map_err(|e| e.to_string())?;
-        
-    Ok(rows.iter().map(|r| {
-        let key: String = r.try_get("column_key").unwrap_or_default();
-        let null_str: String = r.try_get("is_nullable").unwrap_or_default();
-        let extra: String = r.try_get("extra").unwrap_or_default();
-        TableColumn {
-            name: r.try_get("column_name").unwrap_or_default(),
-            data_type: r.try_get("data_type").unwrap_or_default(),
-            is_pk: key == "PRI",
-            is_nullable: null_str == "YES",
-            is_auto_increment: extra.contains("auto_increment"),
-        }
-    }).collect())
+        .fetch_all(&mut conn)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(rows
+        .iter()
+        .map(|r| {
+            let key: String = r.try_get("column_key").unwrap_or_default();
+            let null_str: String = r.try_get("is_nullable").unwrap_or_default();
+            let extra: String = r.try_get("extra").unwrap_or_default();
+            TableColumn {
+                name: r.try_get("column_name").unwrap_or_default(),
+                data_type: r.try_get("data_type").unwrap_or_default(),
+                is_pk: key == "PRI",
+                is_nullable: null_str == "YES",
+                is_auto_increment: extra.contains("auto_increment"),
+            }
+        })
+        .collect())
 }
 
-pub async fn get_foreign_keys(params: &ConnectionParams, table_name: &str) -> Result<Vec<ForeignKey>, String> {
+pub async fn get_foreign_keys(
+    params: &ConnectionParams,
+    table_name: &str,
+) -> Result<Vec<ForeignKey>, String> {
     let user = encode(params.username.as_deref().unwrap_or_default());
     let pass = encode(params.password.as_deref().unwrap_or_default());
-    let url = format!("mysql://{}:{}@{}:{}/{}", 
-        user, pass,
-        params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(3306), params.database);
-    let mut conn = sqlx::mysql::MySqlConnection::connect(&url).await.map_err(|e| e.to_string())?;
+    let url = format!(
+        "mysql://{}:{}@{}:{}/{}",
+        user,
+        pass,
+        params.host.as_deref().unwrap_or("localhost"),
+        params.port.unwrap_or(3306),
+        params.database
+    );
+    let mut conn = sqlx::mysql::MySqlConnection::connect(&url)
+        .await
+        .map_err(|e| e.to_string())?;
 
     let query = r#"
         SELECT 
@@ -76,27 +119,40 @@ pub async fn get_foreign_keys(params: &ConnectionParams, table_name: &str) -> Re
 
     let rows = sqlx::query(query)
         .bind(table_name)
-        .fetch_all(&mut conn).await.map_err(|e| e.to_string())?;
+        .fetch_all(&mut conn)
+        .await
+        .map_err(|e| e.to_string())?;
 
-    Ok(rows.iter().map(|r| {
-        ForeignKey {
+    Ok(rows
+        .iter()
+        .map(|r| ForeignKey {
             name: r.try_get("CONSTRAINT_NAME").unwrap_or_default(),
             column_name: r.try_get("COLUMN_NAME").unwrap_or_default(),
             ref_table: r.try_get("REFERENCED_TABLE_NAME").unwrap_or_default(),
             ref_column: r.try_get("REFERENCED_COLUMN_NAME").unwrap_or_default(),
             on_update: r.try_get("UPDATE_RULE").ok(),
             on_delete: r.try_get("DELETE_RULE").ok(),
-        }
-    }).collect())
+        })
+        .collect())
 }
 
-pub async fn get_indexes(params: &ConnectionParams, table_name: &str) -> Result<Vec<Index>, String> {
+pub async fn get_indexes(
+    params: &ConnectionParams,
+    table_name: &str,
+) -> Result<Vec<Index>, String> {
     let user = encode(params.username.as_deref().unwrap_or_default());
     let pass = encode(params.password.as_deref().unwrap_or_default());
-    let url = format!("mysql://{}:{}@{}:{}/{}", 
-        user, pass,
-        params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(3306), params.database);
-    let mut conn = sqlx::mysql::MySqlConnection::connect(&url).await.map_err(|e| e.to_string())?;
+    let url = format!(
+        "mysql://{}:{}@{}:{}/{}",
+        user,
+        pass,
+        params.host.as_deref().unwrap_or("localhost"),
+        params.port.unwrap_or(3306),
+        params.database
+    );
+    let mut conn = sqlx::mysql::MySqlConnection::connect(&url)
+        .await
+        .map_err(|e| e.to_string())?;
 
     let query = r#"
         SELECT 
@@ -112,121 +168,226 @@ pub async fn get_indexes(params: &ConnectionParams, table_name: &str) -> Result<
 
     let rows = sqlx::query(query)
         .bind(table_name)
-        .fetch_all(&mut conn).await.map_err(|e| e.to_string())?;
+        .fetch_all(&mut conn)
+        .await
+        .map_err(|e| e.to_string())?;
 
-    Ok(rows.iter().map(|r| {
-        let index_name: String = r.try_get("INDEX_NAME").unwrap_or_default();
-        let non_unique: i64 = r.try_get("NON_UNIQUE").unwrap_or(1);
-        Index {
-            name: index_name.clone(),
-            column_name: r.try_get("COLUMN_NAME").unwrap_or_default(),
-            is_unique: non_unique == 0,
-            is_primary: index_name == "PRIMARY",
-            seq_in_index: r.try_get::<i64, _>("SEQ_IN_INDEX").unwrap_or(0) as i32,
-        }
-    }).collect())
+    Ok(rows
+        .iter()
+        .map(|r| {
+            let index_name: String = r.try_get("INDEX_NAME").unwrap_or_default();
+            let non_unique: i64 = r.try_get("NON_UNIQUE").unwrap_or(1);
+            Index {
+                name: index_name.clone(),
+                column_name: r.try_get("COLUMN_NAME").unwrap_or_default(),
+                is_unique: non_unique == 0,
+                is_primary: index_name == "PRIMARY",
+                seq_in_index: r.try_get::<i64, _>("SEQ_IN_INDEX").unwrap_or(0) as i32,
+            }
+        })
+        .collect())
 }
 
-pub async fn delete_record(params: &ConnectionParams, table: &str, pk_col: &str, pk_val: serde_json::Value) -> Result<u64, String> {
+pub async fn delete_record(
+    params: &ConnectionParams,
+    table: &str,
+    pk_col: &str,
+    pk_val: serde_json::Value,
+) -> Result<u64, String> {
     let user = encode(params.username.as_deref().unwrap_or_default());
     let pass = encode(params.password.as_deref().unwrap_or_default());
-    let url = format!("mysql://{}:{}@{}:{}/{}", 
-        user, pass,
-        params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(3306), params.database);
-    let mut conn = sqlx::mysql::MySqlConnection::connect(&url).await.map_err(|e| e.to_string())?;
-    
+    let url = format!(
+        "mysql://{}:{}@{}:{}/{}",
+        user,
+        pass,
+        params.host.as_deref().unwrap_or("localhost"),
+        params.port.unwrap_or(3306),
+        params.database
+    );
+    let mut conn = sqlx::mysql::MySqlConnection::connect(&url)
+        .await
+        .map_err(|e| e.to_string())?;
+
     let query = format!("DELETE FROM `{}` WHERE `{}` = ?", table, pk_col);
-    
+
     let result = match pk_val {
         serde_json::Value::Number(n) => {
-            if n.is_i64() { sqlx::query(&query).bind(n.as_i64()).execute(&mut conn).await }
-            else if n.is_f64() { sqlx::query(&query).bind(n.as_f64()).execute(&mut conn).await }
-            else { sqlx::query(&query).bind(n.to_string()).execute(&mut conn).await }
-        },
+            if n.is_i64() {
+                sqlx::query(&query)
+                    .bind(n.as_i64())
+                    .execute(&mut conn)
+                    .await
+            } else if n.is_f64() {
+                sqlx::query(&query)
+                    .bind(n.as_f64())
+                    .execute(&mut conn)
+                    .await
+            } else {
+                sqlx::query(&query)
+                    .bind(n.to_string())
+                    .execute(&mut conn)
+                    .await
+            }
+        }
         serde_json::Value::String(s) => sqlx::query(&query).bind(s).execute(&mut conn).await,
         _ => return Err("Unsupported PK type".into()),
     };
-    
+
     result.map(|r| r.rows_affected()).map_err(|e| e.to_string())
 }
 
-pub async fn update_record(params: &ConnectionParams, table: &str, pk_col: &str, pk_val: serde_json::Value, col_name: &str, new_val: serde_json::Value) -> Result<u64, String> {
+pub async fn update_record(
+    params: &ConnectionParams,
+    table: &str,
+    pk_col: &str,
+    pk_val: serde_json::Value,
+    col_name: &str,
+    new_val: serde_json::Value,
+) -> Result<u64, String> {
     let user = encode(params.username.as_deref().unwrap_or_default());
     let pass = encode(params.password.as_deref().unwrap_or_default());
-    let url = format!("mysql://{}:{}@{}:{}/{}", 
-        user, pass,
-        params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(3306), params.database);
-    let mut conn = sqlx::mysql::MySqlConnection::connect(&url).await.map_err(|e| e.to_string())?;
-    
+    let url = format!(
+        "mysql://{}:{}@{}:{}/{}",
+        user,
+        pass,
+        params.host.as_deref().unwrap_or("localhost"),
+        params.port.unwrap_or(3306),
+        params.database
+    );
+    let mut conn = sqlx::mysql::MySqlConnection::connect(&url)
+        .await
+        .map_err(|e| e.to_string())?;
+
     let mut qb = sqlx::QueryBuilder::new(format!("UPDATE `{}` SET `{}` = ", table, col_name));
-    
+
     match new_val {
-        serde_json::Value::Number(n) => { if n.is_i64() { qb.push_bind(n.as_i64()); } else { qb.push_bind(n.as_f64()); } },
-        serde_json::Value::String(s) => { qb.push_bind(s); },
-        serde_json::Value::Bool(b) => { qb.push_bind(b); },
-        serde_json::Value::Null => { qb.push("NULL"); },
+        serde_json::Value::Number(n) => {
+            if n.is_i64() {
+                qb.push_bind(n.as_i64());
+            } else {
+                qb.push_bind(n.as_f64());
+            }
+        }
+        serde_json::Value::String(s) => {
+            qb.push_bind(s);
+        }
+        serde_json::Value::Bool(b) => {
+            qb.push_bind(b);
+        }
+        serde_json::Value::Null => {
+            qb.push("NULL");
+        }
         _ => return Err("Unsupported Value type".into()),
     }
-    
+
     qb.push(format!(" WHERE `{}` = ", pk_col));
-    
+
     match pk_val {
-        serde_json::Value::Number(n) => { if n.is_i64() { qb.push_bind(n.as_i64()); } else { qb.push_bind(n.as_f64()); } },
-        serde_json::Value::String(s) => { qb.push_bind(s); },
+        serde_json::Value::Number(n) => {
+            if n.is_i64() {
+                qb.push_bind(n.as_i64());
+            } else {
+                qb.push_bind(n.as_f64());
+            }
+        }
+        serde_json::Value::String(s) => {
+            qb.push_bind(s);
+        }
         _ => return Err("Unsupported PK type".into()),
     }
-    
+
     let query = qb.build();
     let result = query.execute(&mut conn).await.map_err(|e| e.to_string())?;
     Ok(result.rows_affected())
 }
 
-pub async fn insert_record(params: &ConnectionParams, table: &str, data: std::collections::HashMap<String, serde_json::Value>) -> Result<u64, String> {
+pub async fn insert_record(
+    params: &ConnectionParams,
+    table: &str,
+    data: std::collections::HashMap<String, serde_json::Value>,
+) -> Result<u64, String> {
     let user = encode(params.username.as_deref().unwrap_or_default());
     let pass = encode(params.password.as_deref().unwrap_or_default());
-    let url = format!("mysql://{}:{}@{}:{}/{}", 
-        user, pass,
-        params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(3306), params.database);
-    let mut conn = sqlx::mysql::MySqlConnection::connect(&url).await.map_err(|e| e.to_string())?;
-    
+    let url = format!(
+        "mysql://{}:{}@{}:{}/{}",
+        user,
+        pass,
+        params.host.as_deref().unwrap_or("localhost"),
+        params.port.unwrap_or(3306),
+        params.database
+    );
+    let mut conn = sqlx::mysql::MySqlConnection::connect(&url)
+        .await
+        .map_err(|e| e.to_string())?;
+
     let mut cols = Vec::new();
     let mut vals = Vec::new();
-    
+
     for (k, v) in data {
         cols.push(format!("`{}`", k));
         vals.push(v);
     }
-    
-    if cols.is_empty() { return Err("No data to insert".into()); }
-    
-    let mut qb = sqlx::QueryBuilder::new(format!("INSERT INTO `{}` ({}) VALUES (", table, cols.join(", ")));
-    
+
+    if cols.is_empty() {
+        return Err("No data to insert".into());
+    }
+
+    let mut qb = sqlx::QueryBuilder::new(format!(
+        "INSERT INTO `{}` ({}) VALUES (",
+        table,
+        cols.join(", ")
+    ));
+
     let mut separated = qb.separated(", ");
     for val in vals {
         match val {
-            serde_json::Value::Number(n) => { if n.is_i64() { separated.push_bind(n.as_i64()); } else { separated.push_bind(n.as_f64()); } },
-            serde_json::Value::String(s) => { separated.push_bind(s); },
-            serde_json::Value::Bool(b) => { separated.push_bind(b); },
-            serde_json::Value::Null => { separated.push("NULL"); },
+            serde_json::Value::Number(n) => {
+                if n.is_i64() {
+                    separated.push_bind(n.as_i64());
+                } else {
+                    separated.push_bind(n.as_f64());
+                }
+            }
+            serde_json::Value::String(s) => {
+                separated.push_bind(s);
+            }
+            serde_json::Value::Bool(b) => {
+                separated.push_bind(b);
+            }
+            serde_json::Value::Null => {
+                separated.push("NULL");
+            }
             _ => return Err("Unsupported value type".into()),
         }
     }
     separated.push_unseparated(")");
-    
+
     let query = qb.build();
     let result = query.execute(&mut conn).await.map_err(|e| e.to_string())?;
     Ok(result.rows_affected())
 }
 
-pub async fn execute_query(params: &ConnectionParams, query: &str, limit: Option<u32>, page: u32) -> Result<QueryResult, String> {
+pub async fn execute_query(
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+) -> Result<QueryResult, String> {
     let user = encode(params.username.as_deref().unwrap_or_default());
     let pass = encode(params.password.as_deref().unwrap_or_default());
-    let url = format!("mysql://{}:{}@{}:{}/{}", 
-        user, pass,
-        params.host.as_deref().unwrap_or("localhost"), params.port.unwrap_or(3306), params.database);
-    
-    let mut conn = sqlx::mysql::MySqlConnection::connect(&url).await.map_err(|e| e.to_string())?;
-    
+    let url = format!(
+        "mysql://{}:{}@{}:{}/{}",
+        user,
+        pass,
+        params.host.as_deref().unwrap_or("localhost"),
+        params.port.unwrap_or(3306),
+        params.database
+    );
+
+    let mut conn = sqlx::mysql::MySqlConnection::connect(&url)
+        .await
+        .map_err(|e| e.to_string())?;
+
     let is_select = query.trim_start().to_uppercase().starts_with("SELECT");
     let mut pagination: Option<Pagination> = None;
     let final_query: String;
@@ -236,12 +397,12 @@ pub async fn execute_query(params: &ConnectionParams, query: &str, limit: Option
     if is_select && limit.is_some() {
         let l = limit.unwrap();
         let offset = (page - 1) * l;
-        
+
         // Count total rows
         let count_q = format!("SELECT COUNT(*) FROM ({}) as count_wrapper", query);
         // We use fetch_one directly
         let count_res = sqlx::query(&count_q).fetch_one(&mut conn).await;
-        
+
         let total_rows: u64 = if let Ok(row) = count_res {
             row.try_get::<i64, _>(0).unwrap_or(0) as u64
         } else {
@@ -253,23 +414,26 @@ pub async fn execute_query(params: &ConnectionParams, query: &str, limit: Option
             page_size: l,
             total_rows,
         });
-        
+
         // Set truncated if there are more results than shown
         truncated = total_rows > l as u64;
 
         // Wrap query for pagination
-        final_query = format!("SELECT * FROM ({}) as data_wrapper LIMIT {} OFFSET {}", query, l, offset);
+        final_query = format!(
+            "SELECT * FROM ({}) as data_wrapper LIMIT {} OFFSET {}",
+            query, l, offset
+        );
         manual_limit = None; // Disable manual limit since SQL handles it
     } else {
         final_query = query.to_string();
     }
-    
+
     // Use fetch instead of fetch_all to support streaming/limit
     let mut rows_stream = sqlx::query(&final_query).fetch(&mut conn);
-    
+
     let mut columns: Vec<String> = Vec::new();
     let mut json_rows = Vec::new();
-    
+
     use futures::stream::StreamExt; // Correct import
 
     while let Some(result) = rows_stream.next().await {
@@ -299,6 +463,12 @@ pub async fn execute_query(params: &ConnectionParams, query: &str, limit: Option
             Err(e) => return Err(e.to_string()),
         }
     }
-    
-    Ok(QueryResult { columns, rows: json_rows, affected_rows: 0, truncated, pagination })
+
+    Ok(QueryResult {
+        columns,
+        rows: json_rows,
+        affected_rows: 0,
+        truncated,
+        pagination,
+    })
 }

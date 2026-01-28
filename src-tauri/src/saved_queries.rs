@@ -1,7 +1,7 @@
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager, Runtime};
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -56,9 +56,9 @@ pub async fn get_saved_queries<R: Runtime>(
 ) -> Result<Vec<SavedQuery>, String> {
     let meta_list = read_meta(&app)?;
     let dir = get_queries_dir(&app)?;
-    
+
     let mut results = Vec::new();
-    
+
     for meta in meta_list {
         if meta.connection_id == connection_id {
             let file_path = dir.join(&meta.filename);
@@ -67,7 +67,7 @@ pub async fn get_saved_queries<R: Runtime>(
             } else {
                 String::new()
             };
-            
+
             results.push(SavedQuery {
                 id: meta.id,
                 name: meta.name,
@@ -76,7 +76,7 @@ pub async fn get_saved_queries<R: Runtime>(
             });
         }
     }
-    
+
     Ok(results)
 }
 
@@ -89,23 +89,23 @@ pub async fn save_query<R: Runtime>(
 ) -> Result<SavedQuery, String> {
     let mut meta_list = read_meta(&app)?;
     let dir = get_queries_dir(&app)?;
-    
+
     let id = Uuid::new_v4().to_string();
     let filename = format!("{}.sql", id);
     let file_path = dir.join(&filename);
-    
+
     fs::write(file_path, &sql).map_err(|e| e.to_string())?;
-    
+
     let new_meta = SavedQueryMeta {
         id: id.clone(),
         name: name.clone(),
         filename,
         connection_id: connection_id.clone(),
     };
-    
+
     meta_list.push(new_meta);
     write_meta(&app, &meta_list)?;
-    
+
     Ok(SavedQuery {
         id,
         name,
@@ -123,17 +123,20 @@ pub async fn update_saved_query<R: Runtime>(
 ) -> Result<SavedQuery, String> {
     let mut meta_list = read_meta(&app)?;
     let dir = get_queries_dir(&app)?;
-    
-    let idx = meta_list.iter().position(|m| m.id == id).ok_or("Query not found")?;
-    
+
+    let idx = meta_list
+        .iter()
+        .position(|m| m.id == id)
+        .ok_or("Query not found")?;
+
     // Update metadata name
     meta_list[idx].name = name.clone();
     write_meta(&app, &meta_list)?;
-    
+
     // Update SQL file
     let file_path = dir.join(&meta_list[idx].filename);
     fs::write(file_path, &sql).map_err(|e| e.to_string())?;
-    
+
     Ok(SavedQuery {
         id: meta_list[idx].id.clone(),
         name,
@@ -143,22 +146,22 @@ pub async fn update_saved_query<R: Runtime>(
 }
 
 #[tauri::command]
-pub async fn delete_saved_query<R: Runtime>(
-    app: AppHandle<R>,
-    id: String,
-) -> Result<(), String> {
+pub async fn delete_saved_query<R: Runtime>(app: AppHandle<R>, id: String) -> Result<(), String> {
     let mut meta_list = read_meta(&app)?;
     let dir = get_queries_dir(&app)?;
-    
-    let idx = meta_list.iter().position(|m| m.id == id).ok_or("Query not found")?;
+
+    let idx = meta_list
+        .iter()
+        .position(|m| m.id == id)
+        .ok_or("Query not found")?;
     let meta = meta_list.remove(idx);
-    
+
     write_meta(&app, &meta_list)?;
-    
+
     let file_path = dir.join(&meta.filename);
     if file_path.exists() {
         let _ = fs::remove_file(file_path);
     }
-    
+
     Ok(())
 }

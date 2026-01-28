@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   Github,
   CheckCircle2,
@@ -177,15 +178,13 @@ export const Settings = () => {
                 </p>
 
                 <div className="flex justify-center gap-4">
-                  <a
-                    href="https://github.com/debba/tabularis"
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    onClick={() => openUrl("https://github.com/debba/tabularis")}
                     className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium transition-colors border border-slate-700"
                   >
                     <Github size={18} />
                     {t("settings.starOnGithub")}
-                  </a>
+                  </button>
                   <div className="flex items-center gap-2 bg-blue-900/30 text-blue-300 px-4 py-2 rounded-lg border border-blue-500/30">
                     <span className="text-xs font-bold uppercase tracking-wider">
                       {t("settings.version")}
@@ -240,14 +239,12 @@ export const Settings = () => {
                 <p className="text-slate-400 text-sm mb-4 max-w-md">
                   {t("settings.supportDesc")}
                 </p>
-                <a
-                  href="https://github.com/debba/tabularis"
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  onClick={() => openUrl("https://github.com/debba/tabularis")}
                   className="text-blue-400 hover:text-blue-300 font-medium text-sm hover:underline"
                 >
                   github.com/debba/tabularis
-                </a>
+                </button>
               </div>
             </div>
           )}

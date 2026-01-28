@@ -315,4 +315,8 @@ Adhere to the rules defined in the [rules directory](./.rules/):
     - **Dynamic Content:** Added support for interpolated translations (e.g., "Editing: table_name", "Delete column \"col\" from \"table\"").
     - **Breaking Change Note:** Documented configuration directory move in README.
 
-
+### Session 27: Fix External Links
+- **Status:** Bug Fix.
+- **Actions:**
+    - **Dependencies:** Added `@tauri-apps/plugin-opener` to backend and frontend.
+    - **Frontend:** Updated `Settings.tsx` to use `openUrl` for GitHub links instead of standard `<a>` tags.
