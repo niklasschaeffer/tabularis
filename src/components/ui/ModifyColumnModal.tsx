@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Save, Loader2, AlertTriangle } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 
@@ -42,6 +43,7 @@ export const ModifyColumnModal = ({
     driver,
     column 
 }: ModifyColumnModalProps) => {
+  const { t } = useTranslation();
   const isEdit = !!column;
   
   // Parse initial type/length from column.data_type if possible
@@ -89,7 +91,7 @@ export const ModifyColumnModal = ({
   }, [initial, isOpen]);
 
   const sqlPreview = useMemo(() => {
-    if (!form.name) return '-- Column name is required';
+    if (!form.name) return '-- ' + t('modifyColumn.nameRequired');
 
     const q = (driver === 'mysql' || driver === 'mariadb') ? '`' : '"';
     const typeDef = `${form.type}${form.length ? `(${form.length})` : ''}`;
@@ -177,18 +179,18 @@ export const ModifyColumnModal = ({
             
             // PK / AutoInc not supported well in MODIFY for Postgres here (requires sequence manipulation / constraint management)
             
-            if (statements.length === 0) return '-- No changes detected';
+            if (statements.length === 0) return '-- ' + t('modifyColumn.noChanges');
             return statements.join('\n');
         } else if (driver === 'sqlite') {
             return '-- SQLite modification is limited. Rename only supported via RENAME COLUMN.\n-- Full modification requires table recreation.';
         }
     }
-    return '-- Unsupported driver';
-  }, [form, driver, isEdit, tableName, column]);
+    return '-- ' + t('modifyColumn.unsupported');
+  }, [form, driver, isEdit, tableName, column, t]);
 
   const handleSubmit = async () => {
     if (!form.name.trim()) {
-        setError('Column name is required');
+        setError(t('modifyColumn.nameRequired'));
         return;
     }
     setLoading(true);
@@ -203,7 +205,7 @@ export const ModifyColumnModal = ({
                  query: `ALTER TABLE ${q}${tableName}${q} RENAME COLUMN ${q}${column?.name}${q} TO ${q}${form.name}${q}`
              });
         } else if (driver === 'sqlite' && isEdit) {
-            throw new Error('SQLite only supports renaming columns. For other changes, please recreate the table.');
+            throw new Error(t('modifyColumn.sqliteWarn'));
         } else {
             // Run the generated SQL
             // Postgres might generate multiple statements joined by \n
@@ -226,7 +228,7 @@ export const ModifyColumnModal = ({
         onClose();
     } catch (e) {
         console.error(e);
-        setError('Failed: ' + (String(e)));
+        setError(t('modifyColumn.fail') + (String(e)));
     } finally {
         setLoading(false);
     }
@@ -240,7 +242,7 @@ export const ModifyColumnModal = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-800/50 rounded-t-xl">
            <h2 className="text-lg font-bold text-white">
-             {isEdit ? 'Modify Column' : 'Add Column'}
+             {isEdit ? t('modifyColumn.titleEdit') : t('modifyColumn.titleAdd')}
            </h2>
            <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
              <X size={20} />
@@ -252,12 +254,12 @@ export const ModifyColumnModal = ({
             {driver === 'sqlite' && isEdit && (
                 <div className="bg-yellow-900/20 border border-yellow-700/50 text-yellow-200 text-xs p-3 rounded flex items-start gap-2">
                     <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                    <span>SQLite only supports renaming columns. Other modifications require recreating the table manually.</span>
+                    <span>{t('modifyColumn.sqliteWarn')}</span>
                 </div>
             )}
 
             <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">Name</label>
+                <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">{t('modifyColumn.name')}</label>
                 <input 
                     value={form.name}
                     onChange={(e) => setForm({...form, name: e.target.value})}
@@ -269,17 +271,17 @@ export const ModifyColumnModal = ({
 
             <div className="flex gap-4">
                 <div className="flex-1">
-                    <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">Type</label>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">{t('modifyColumn.type')}</label>
                     <select 
                         value={form.type}
                         onChange={(e) => {
                             const newType = e.target.value;
-                            const needsLength = ['VARCHAR', 'CHAR', 'DECIMAL', 'FLOAT', 'DOUBLE'].some(t => newType.includes(t));
+                            const needsLength = ['VARCHAR', 'CHAR', 'DECIMAL', 'FLOAT', 'DOUBLE'].some(t_type => newType.includes(t_type));
                             setForm({
                                 ...form, 
                                 type: newType,
                                 // Clear length if new type doesn't support it, unless it's VARCHAR which defaults to 255 if empty in some contexts, but here we can just clear it or set to default if needed.
-                                // User asked: "Su add column mette sempre length 255 anche dove non serve"
+                                // User asked: "Su add column mette sempre length 255 anche o dove non serve"
                                 // So if type changes to INTEGER, length should be cleared.
                                 length: needsLength ? (form.length || (newType.includes('VARCHAR') ? '255' : '')) : ''
                             });
@@ -294,24 +296,24 @@ export const ModifyColumnModal = ({
                           paddingRight: `2.5rem`
                         }}
                     >
-                        {COMMON_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                        {COMMON_TYPES.map(t_type => <option key={t_type} value={t_type}>{t_type}</option>)}
                     </select>
                 </div>
                 <div className="w-24">
-                    <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">Length</label>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">{t('modifyColumn.length')}</label>
                     <input 
                         value={form.length}
                         onChange={(e) => setForm({...form, length: e.target.value})}
-                        disabled={(driver === 'sqlite' && isEdit) || !['VARCHAR', 'CHAR', 'DECIMAL', 'FLOAT', 'DOUBLE'].some(t => form.type.includes(t))}
+                        disabled={(driver === 'sqlite' && isEdit) || !['VARCHAR', 'CHAR', 'DECIMAL', 'FLOAT', 'DOUBLE'].some(t_type => form.type.includes(t_type))}
                         className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm focus:border-blue-500 outline-none font-mono disabled:opacity-50"
-                        placeholder={form.type.includes('VARCHAR') ? '255' : (['DECIMAL', 'FLOAT', 'DOUBLE'].some(t => form.type.includes(t)) ? '10,2' : '')}
+                        placeholder={form.type.includes('VARCHAR') ? '255' : (['DECIMAL', 'FLOAT', 'DOUBLE'].some(t_type => form.type.includes(t_type)) ? '10,2' : '')}
                     />
                 </div>
             </div>
 
             <div className="flex gap-4">
                 <div className="flex-1">
-                    <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">Default Value</label>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">{t('modifyColumn.default')}</label>
                     <input 
                         value={form.defaultValue}
                         onChange={(e) => setForm({...form, defaultValue: e.target.value})}
@@ -333,16 +335,9 @@ export const ModifyColumnModal = ({
                         className="accent-blue-500"
                     />
                     <label htmlFor="isNullable" className="text-sm text-slate-300 select-none cursor-pointer">
-                        Not Null
+                        {t('modifyColumn.notNull')}
                     </label>
                 </div>
-                
-                {/* PK and AutoInc - Only allow for NEW columns or if driver supports easy mod (MySQL) */}
-                {/* For existing columns, modifying PK is dangerous/complex usually requiring dropping old PK first. */}
-                {/* Let's allow it for ADD COLUMN, or MySQL MODIFY (with care). */}
-                {/* For simplicity, disable for EDIT unless we are sure. */}
-                {/* MySQL allows changing auto_increment status via MODIFY COLUMN. */}
-                {/* Postgres handles Serial via type, but adding PK is separate constraint. */}
                 
                 <div className="flex items-center gap-2">
                     <input 
@@ -354,7 +349,7 @@ export const ModifyColumnModal = ({
                         className="accent-blue-500 disabled:opacity-50"
                     />
                     <label htmlFor="isPk" className={`text-sm select-none cursor-pointer ${isEdit ? 'text-slate-500' : 'text-slate-300'}`}>
-                        Primary Key
+                        {t('modifyColumn.primaryKey')}
                     </label>
                 </div>
 
@@ -371,14 +366,14 @@ export const ModifyColumnModal = ({
                         className="accent-blue-500 disabled:opacity-50"
                     />
                     <label htmlFor="isAutoInc" className={`text-sm select-none cursor-pointer ${(isEdit && driver !== 'mysql' && driver !== 'mariadb') || !['INTEGER', 'BIGINT'].includes(form.type) ? 'text-slate-500' : 'text-slate-300'}`}>
-                        Auto Increment
+                        {t('modifyColumn.autoInc')}
                     </label>
                 </div>
             </div>
 
             {/* Preview */}
             <div className="bg-slate-950 border border-slate-800 rounded p-3 mt-2">
-                <div className="text-[10px] text-slate-500 mb-1 uppercase tracking-wider">SQL Preview</div>
+                <div className="text-[10px] text-slate-500 mb-1 uppercase tracking-wider">{t('modifyColumn.sqlPreview')}</div>
                 <pre className="text-xs font-mono text-green-400 whitespace-pre-wrap break-all">{sqlPreview}</pre>
             </div>
 
@@ -395,7 +390,7 @@ export const ModifyColumnModal = ({
              onClick={onClose}
              className="px-4 py-2 text-slate-400 hover:text-white font-medium text-sm transition-colors"
            >
-             Cancel
+             {t('modifyColumn.cancel')}
            </button>
            <button 
              onClick={handleSubmit}
@@ -403,7 +398,7 @@ export const ModifyColumnModal = ({
              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all"
            >
              {loading && <Loader2 size={16} className="animate-spin" />}
-             <Save size={16} /> {isEdit ? 'Save Changes' : 'Add Column'}
+             <Save size={16} /> {isEdit ? t('modifyColumn.save') : t('modifyColumn.add')}
            </button>
         </div>
       </div>

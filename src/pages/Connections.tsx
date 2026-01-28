@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { NewConnectionModal } from '../components/ui/NewConnectionModal';
 import { invoke } from '@tauri-apps/api/core';
 import { ask } from '@tauri-apps/plugin-dialog';
@@ -26,6 +27,7 @@ interface SavedConnection {
 }
 
 export const Connections = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { connect, activeConnectionId, disconnect } = useDatabase();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -62,13 +64,13 @@ export const Connections = () => {
       navigate('/editor');
     } catch (e) {
       console.error(e);
-      setError(`Failed to connect to ${conn.name}. Please check your settings or ensuring the database is running.`);
+      setError(t('connections.failConnect', { name: conn.name }));
     }
   };
 
   const handleDelete = async (id: string) => {
-      const confirmed = await ask("Are you sure you want to delete this connection?", { 
-          title: 'Confirm Delete',
+      const confirmed = await ask(t('connections.confirmDelete'), { 
+          title: t('connections.deleteTitle'),
           kind: 'warning'
       });
       
@@ -94,20 +96,20 @@ export const Connections = () => {
         openEdit(newConn);
     } catch (e) {
         console.error(e);
-        setError("Failed to duplicate connection");
+        setError(t('connections.failDuplicate'));
     }
   };
 
   return (
     <div className="p-6 h-full overflow-auto relative">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Connections</h1>
+        <h1 className="text-2xl font-bold">{t('connections.title')}</h1>
         <button 
           onClick={() => { setEditingConnection(null); setIsModalOpen(true); }}
           className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-md font-medium text-sm flex items-center gap-2"
         >
           <Plus size={16} />
-          Add Connection
+          {t('connections.addConnection')}
         </button>
       </div>
       
@@ -121,12 +123,12 @@ export const Connections = () => {
       {connections.length === 0 ? (
         <div className="p-8 border border-slate-800 rounded-lg bg-slate-900/50 flex flex-col items-center justify-center text-slate-400 min-h-[400px]">
           <Database size={48} className="mb-4 opacity-50" />
-          <p className="mb-4">No active connections</p>
+          <p className="mb-4">{t('connections.noConnections')}</p>
           <button 
             onClick={() => { setEditingConnection(null); setIsModalOpen(true); }}
             className="text-blue-400 hover:text-blue-300 font-medium"
           >
-            Create your first connection
+            {t('connections.createFirst')}
           </button>
         </div>
       ) : (
@@ -153,7 +155,7 @@ export const Connections = () => {
                     `}>
                       <Database size={20} />
                       {conn.params.ssh_enabled && (
-                          <div className="absolute -bottom-1 -right-1 bg-slate-900 rounded-full p-0.5" title="SSH Tunnel Enabled">
+                          <div className="absolute -bottom-1 -right-1 bg-slate-900 rounded-full p-0.5" title={t('connections.sshEnabled')}>
                               <Shield size={12} className="text-emerald-400 fill-emerald-400/20" />
                           </div>
                       )}
@@ -169,7 +171,7 @@ export const Connections = () => {
                   {isActive && (
                     <div className="flex items-center gap-1 text-xs text-green-400 font-medium bg-green-400/10 px-2 py-0.5 rounded">
                       <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                      Active
+                      {t('connections.active')}
                     </div>
                   )}
                 </div>
@@ -185,7 +187,7 @@ export const Connections = () => {
                      <button 
                        onClick={(e) => { e.stopPropagation(); disconnect(); }}
                        className="p-1.5 hover:bg-red-900/50 text-slate-400 hover:text-red-400 rounded"
-                       title="Disconnect"
+                       title={t('connections.disconnect')}
                      >
                        <Power size={14} />
                      </button>
@@ -193,7 +195,7 @@ export const Connections = () => {
                      <button 
                        onClick={(e) => { e.stopPropagation(); handleConnect(conn); }}
                        className="p-1.5 hover:bg-green-900/50 text-slate-400 hover:text-green-400 rounded"
-                       title="Connect"
+                       title={t('connections.connect')}
                      >
                        <Power size={14} />
                      </button>
@@ -204,21 +206,21 @@ export const Connections = () => {
                    <button 
                        onClick={(e) => { e.stopPropagation(); openEdit(conn); }}
                        className="p-1.5 hover:bg-blue-900/50 text-slate-400 hover:text-blue-400 rounded"
-                       title="Edit"
+                       title={t('connections.edit')}
                    >
                        <Edit size={14} />
                    </button>
                    <button 
                        onClick={(e) => { e.stopPropagation(); handleDuplicate(conn.id); }}
                        className="p-1.5 hover:bg-purple-900/50 text-slate-400 hover:text-purple-400 rounded"
-                       title="Clone"
+                       title={t('connections.clone')}
                    >
                        <Copy size={14} />
                    </button>
                    <button 
                        onClick={(e) => { e.stopPropagation(); handleDelete(conn.id); }}
                        className="p-1.5 hover:bg-red-900/50 text-slate-400 hover:text-red-400 rounded"
-                       title="Delete"
+                       title={t('connections.delete')}
                    >
                        <Trash2 size={14} />
                    </button>

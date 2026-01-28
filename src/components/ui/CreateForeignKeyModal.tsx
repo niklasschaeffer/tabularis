@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Save, Loader2, AlertTriangle } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 
@@ -29,6 +30,7 @@ export const CreateForeignKeyModal = ({
   tableName,
   driver
 }: CreateForeignKeyModalProps) => {
+  const { t } = useTranslation();
   const [fkName, setFkName] = useState('');
   const [localColumn, setLocalColumn] = useState('');
   const [refTable, setRefTable] = useState('');
@@ -90,19 +92,19 @@ export const CreateForeignKeyModal = ({
   }, [localColumn, refTable, tableName]);
 
   const sqlPreview = useMemo(() => {
-      if (!fkName || !localColumn || !refTable || !refColumn) return '-- Define FK details';
+      if (!fkName || !localColumn || !refTable || !refColumn) return '-- ' + t('createFk.sqlPreview');
       
       const q = (driver === 'mysql' || driver === 'mariadb') ? '`' : '"';
       
       // ALTER TABLE child ADD CONSTRAINT fk_name FOREIGN KEY (col) REFERENCES parent (col) ON DELETE ... ON UPDATE ...
       return `ALTER TABLE ${q}${tableName}${q} ADD CONSTRAINT ${q}${fkName}${q} FOREIGN KEY (${q}${localColumn}${q}) REFERENCES ${q}${refTable}${q} (${q}${refColumn}${q}) ON DELETE ${onDelete} ON UPDATE ${onUpdate};`;
-  }, [fkName, localColumn, refTable, refColumn, onDelete, onUpdate, tableName, driver]);
+  }, [fkName, localColumn, refTable, refColumn, onDelete, onUpdate, tableName, driver, t]);
 
   const handleCreate = async () => {
-      if (!fkName.trim()) { setError('FK Name is required'); return; }
+      if (!fkName.trim()) { setError(t('createFk.nameRequired')); return; }
       
       if (driver === 'sqlite') {
-          setError('SQLite does not support adding Foreign Keys via ALTER TABLE. You must recreate the table.');
+          setError(t('sidebar.sqliteFkError'));
           return;
       }
 
@@ -125,7 +127,7 @@ export const CreateForeignKeyModal = ({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100]">
       <div className="bg-slate-900 rounded-xl shadow-2xl w-[600px] border border-slate-700 flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-800/50 rounded-t-xl">
-           <h2 className="text-lg font-bold text-white">Create Foreign Key</h2>
+           <h2 className="text-lg font-bold text-white">{t('createFk.title')}</h2>
            <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
              <X size={20} />
            </button>
@@ -135,12 +137,12 @@ export const CreateForeignKeyModal = ({
             {driver === 'sqlite' && (
                 <div className="bg-yellow-900/20 border border-yellow-700/50 text-yellow-200 text-xs p-3 rounded flex items-start gap-2">
                     <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                    <span>SQLite does not support adding Foreign Keys to existing tables.</span>
+                    <span>{t('sidebar.sqliteFkError')}</span>
                 </div>
             )}
 
             <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">Constraint Name</label>
+                <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">{t('createFk.name')}</label>
                 <input 
                     value={fkName}
                     onChange={(e) => setFkName(e.target.value)}
@@ -150,7 +152,7 @@ export const CreateForeignKeyModal = ({
 
             <div className="grid grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">Local Column</label>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">{t('createFk.column')}</label>
                     <select 
                         value={localColumn}
                         onChange={(e) => setLocalColumn(e.target.value)}
@@ -161,13 +163,13 @@ export const CreateForeignKeyModal = ({
                 </div>
                 
                 <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">Referenced Table</label>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">{t('createFk.refTable')}</label>
                     <select 
                         value={refTable}
                         onChange={(e) => setRefTable(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm outline-none"
                     >
-                        {tables.map(t => <option key={t.name} value={t.name}>{t.name}</option>)}
+                        {tables.map(t_info => <option key={t_info.name} value={t_info.name}>{t_info.name}</option>)}
                     </select>
                 </div>
             </div>
@@ -177,9 +179,9 @@ export const CreateForeignKeyModal = ({
                     {/* Empty spacer or mapping visualization */}
                 </div>
                 <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">Referenced Column</label>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">{t('createFk.refColumn')}</label>
                     {fetchingRefCols ? (
-                        <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 size={12} className="animate-spin"/> Loading...</div>
+                        <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 size={12} className="animate-spin"/> {t('common.loading')}</div>
                     ) : (
                         <select 
                             value={refColumn}
@@ -194,7 +196,7 @@ export const CreateForeignKeyModal = ({
 
             <div className="grid grid-cols-2 gap-4 mt-2">
                 <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">On Update</label>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">{t('createFk.onUpdate')}</label>
                     <select 
                         value={onUpdate}
                         onChange={(e) => setOnUpdate(e.target.value)}
@@ -204,7 +206,7 @@ export const CreateForeignKeyModal = ({
                     </select>
                 </div>
                 <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">On Delete</label>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">{t('createFk.onDelete')}</label>
                     <select 
                         value={onDelete}
                         onChange={(e) => setOnDelete(e.target.value)}
@@ -216,7 +218,7 @@ export const CreateForeignKeyModal = ({
             </div>
 
             <div className="bg-slate-950 border border-slate-800 rounded p-3 mt-2">
-                <div className="text-[10px] text-slate-500 mb-1 uppercase tracking-wider">SQL Preview</div>
+                <div className="text-[10px] text-slate-500 mb-1 uppercase tracking-wider">{t('createFk.sqlPreview')}</div>
                 <pre className="text-xs font-mono text-green-400 whitespace-pre-wrap break-all">{sqlPreview}</pre>
             </div>
 
@@ -229,7 +231,7 @@ export const CreateForeignKeyModal = ({
 
         <div className="p-4 bg-slate-800/50 border-t border-slate-800 rounded-b-xl flex justify-end gap-3">
            <button onClick={onClose} className="px-4 py-2 text-slate-400 hover:text-white font-medium text-sm transition-colors">
-             Cancel
+             {t('createFk.cancel')}
            </button>
            <button 
              onClick={handleCreate}
@@ -237,7 +239,7 @@ export const CreateForeignKeyModal = ({
              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all"
            >
              {loading && <Loader2 size={16} className="animate-spin" />}
-             <Save size={16} /> Create
+             <Save size={16} /> {t('createFk.create')}
            </button>
         </div>
       </div>

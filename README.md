@@ -12,7 +12,7 @@ A lightweight, developer-focused database management tool, built with Tauri and 
 ## Release Download:
 
 <!-- DOWNLOAD_SECTION_START -->
-[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/debba/tabularis/releases/download/v0.5.0/tabularis_0.5.0_x64-setup.exe) [![macOS](https://img.shields.io/badge/macOS-Download-black?logo=apple)](https://github.com/debba/tabularis/releases/download/v0.5.0/tabularis_0.5.0_x64.dmg) [![Linux](https://img.shields.io/badge/Linux-Download-green?logo=linux)](https://github.com/debba/tabularis/releases/download/v0.5.0/tabularis_0.5.0_amd64.AppImage)
+[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/debba/tabularis/releases/download/v0.6.0/tabularis_0.6.0_x64-setup.exe) [![macOS](https://img.shields.io/badge/macOS-Download-black?logo=apple)](https://github.com/debba/tabularis/releases/download/v0.6.0/tabularis_0.6.0_x64.dmg) [![Linux](https://img.shields.io/badge/Linux-Download-green?logo=linux)](https://github.com/debba/tabularis/releases/download/v0.6.0/tabularis_0.6.0_amd64.AppImage)
 <!-- DOWNLOAD_SECTION_END -->
 
 <div align="center">
@@ -31,6 +31,21 @@ A lightweight, developer-focused database management tool, built with Tauri and 
 </div>
 
 ## Features
+
+### 🔒 New in v0.6.0
+
+- **Internationalization (i18n):**
+  - Full support for **English** (default) and **Italian**.
+  - Automatic system language detection.
+  - Manual language override in Settings.
+- **Breaking Change:** Configuration directory has moved from `debba.sql` to `tabularis`. You may need to manually move your `connections.json` and `saved_queries.json` if they are not picked up.
+- **Rebranding:** The project is now **tabularis**.
+- **Secure Keychain Storage:**
+  - Integrated system keychain support (Linux Secret Service, macOS Keychain, Windows Credential Manager).
+  - Option to securely store database and SSH passwords instead of plain text configuration files.
+- **UX Improvements:**
+  - Enhanced SQL Editor UI with better resize handles and visibility toggles.
+  - Refined connection management flow.
 
 ### 🚀 New in v0.5.0
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Database, Terminal, Settings, Table as TableIcon, Loader2, Copy, Hash, PlaySquare, FileText, Plus, ChevronRight, ChevronDown, FileCode, Play, Edit, Trash2, PanelLeftClose, PanelLeft, Key, Columns, List, Link as LinkIcon, Folder } from 'lucide-react';
 import clsx from 'clsx';
 import { ask, message } from '@tauri-apps/plugin-dialog';
@@ -101,6 +102,7 @@ const SidebarColumnItem = ({
     onRefresh: () => void;
     onEdit: (column: TableColumn) => void;
 }) => {
+    const { t } = useTranslation();
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
     const handleContextMenu = (e: React.MouseEvent) => {
@@ -111,8 +113,8 @@ const SidebarColumnItem = ({
 
     const handleDelete = async () => {
         const confirmed = await ask(
-            `Are you sure you want to delete column "${column.name}" from table "${tableName}"?\n\nWARNING: This will permanently delete all data in this column. This action cannot be undone.`,
-            { title: 'Delete Column', kind: 'warning' }
+            t('sidebar.deleteColumnConfirm', { column: column.name, table: tableName }),
+            { title: t('sidebar.deleteColumn'), kind: 'warning' }
         );
 
         if (confirmed) {
@@ -128,7 +130,7 @@ const SidebarColumnItem = ({
                 onRefresh();
             } catch (e) {
                 console.error(e);
-                await message(`Failed to delete column: ${e}`, { title: 'Error', kind: 'error' });
+                await message(t('sidebar.failDeleteColumn') + e, { title: t('common.error'), kind: 'error' });
             }
         }
     };
@@ -159,17 +161,17 @@ const SidebarColumnItem = ({
                     onClose={() => setContextMenu(null)}
                     items={[
                         {
-                            label: 'Modify Column',
+                            label: t('sidebar.modifyColumn'),
                             icon: Edit,
                             action: () => onEdit(column)
                         },
                         {
-                            label: 'Copy Name',
+                            label: t('sidebar.copyName'),
                             icon: Copy,
                             action: () => navigator.clipboard.writeText(column.name)
                         },
                         {
-                            label: 'Delete Column',
+                            label: t('sidebar.deleteColumn'),
                             icon: Trash2,
                             danger: true,
                             action: handleDelete
@@ -210,6 +212,7 @@ const SidebarTableItem = ({
     onDropForeignKey: (tableName: string, fkName: string) => void;
     schemaVersion: number;
 }) => {
+    const { t } = useTranslation();
     // Prevent unused variable warning
     void onAddColumn;
     void onAddIndex;
@@ -327,7 +330,7 @@ const SidebarTableItem = ({
                     {isLoading ? (
                         <div className="flex items-center gap-2 p-2 text-xs text-slate-500">
                             <Loader2 size={12} className="animate-spin" />
-                            Loading...
+                            {t('sidebar.loadingSchema')}
                         </div>
                     ) : (
                         <>
@@ -339,7 +342,7 @@ const SidebarTableItem = ({
                                     onContextMenu={(e) => { e.stopPropagation(); e.preventDefault(); /* Columns folder context menu? Maybe Add Column */ }}
                                 >
                                     <Folder size={12} className="text-blue-400/70" />
-                                    <span>columns</span>
+                                    <span>{t('sidebar.columns')}</span>
                                     <span className="ml-auto text-[10px] opacity-50">{columns.length}</span>
                                 </div>
                                 {expandColumns && (
@@ -367,7 +370,7 @@ const SidebarTableItem = ({
                                         onClick={(e) => { e.stopPropagation(); setExpandKeys(!expandKeys); }}
                                     >
                                         <Folder size={12} className="text-yellow-500/70" />
-                                        <span>keys</span>
+                                        <span>{t('sidebar.keys')}</span>
                                         <span className="ml-auto text-[10px] opacity-50">{keys.length}</span>
                                     </div>
                                     {expandKeys && (
@@ -406,7 +409,7 @@ const SidebarTableItem = ({
                                     onContextMenu={(e) => showContextMenu(e, 'folder_fks', 'foreign keys')}
                                 >
                                     <Folder size={12} className="text-purple-400/70" />
-                                    <span>foreign keys</span>
+                                    <span>{t('sidebar.foreignKeys')}</span>
                                     <span className="ml-auto text-[10px] opacity-50">{foreignKeys.length}</span>
                                 </div>
                                 <div className="ml-4 border-l border-slate-800/50">
@@ -432,7 +435,7 @@ const SidebarTableItem = ({
                                         onContextMenu={(e) => showContextMenu(e, 'folder_indexes', 'indexes')}
                                     >
                                         <Folder size={12} className="text-green-400/70" />
-                                        <span>indexes</span>
+                                        <span>{t('sidebar.indexes')}</span>
                                         <span className="ml-auto text-[10px] opacity-50">{indexesList.length}</span>
                                     </div>
                                     {expandIndexes && (
@@ -467,6 +470,7 @@ const SidebarTableItem = ({
 type ContextMenuData = SavedQuery | { tableName: string };
 
 export const Sidebar = () => {
+  const { t } = useTranslation();
   const { activeConnectionId, activeDriver, activeTable, setActiveTable, tables, isLoadingTables, refreshTables } = useDatabase();
   const { queries, deleteQuery, updateQuery } = useSavedQueries();
   const navigate = useNavigate();
@@ -515,20 +519,22 @@ export const Sidebar = () => {
       {/* Primary Navigation Bar (Narrow) */}
       <aside className="w-16 bg-slate-900 border-r border-slate-800 flex flex-col items-center py-4 z-20">
         <div className="mb-8" title="tabularis">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl flex items-center justify-center font-bold text-white text-sm shadow-lg shadow-blue-900/20 border border-blue-500/30">
-            ta
-          </div>
+          <img 
+            src="/logo.png" 
+            alt="tabularis" 
+            className="w-10 h-10 rounded-xl shadow-lg shadow-blue-900/20 border border-blue-500/30 transition-transform hover:scale-105" 
+          />
         </div>
         
         <nav className="flex-1 w-full flex flex-col items-center">
-          <NavItem to="/" icon={Database} label="Connections" isConnected={!!activeConnectionId} />
+          <NavItem to="/" icon={Database} label={t('sidebar.connections')} isConnected={!!activeConnectionId} />
           {activeConnectionId && (
-            <NavItem to="/editor" icon={Terminal} label="SQL Editor" />
+            <NavItem to="/editor" icon={Terminal} label={t('sidebar.sqlEditor')} />
           )}
         </nav>
 
         <div className="mt-auto">
-          <NavItem to="/settings" icon={Settings} label="Settings" />
+          <NavItem to="/settings" icon={Settings} label={t('sidebar.settings')} />
         </div>
       </aside>
 
@@ -538,7 +544,7 @@ export const Sidebar = () => {
           <div className="p-4 border-b border-slate-800 font-semibold text-sm text-slate-200 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Database size={16} className="text-blue-400"/>
-              <span>Explorer</span>
+              <span>{t('sidebar.explorer')}</span>
             </div>
             <button
               onClick={() => setIsExplorerCollapsed(true)}
@@ -553,18 +559,18 @@ export const Sidebar = () => {
             {isLoadingTables ? (
               <div className="flex items-center justify-center h-20 text-slate-500 gap-2">
                 <Loader2 size={16} className="animate-spin" />
-                <span className="text-sm">Loading schema...</span>
+                <span className="text-sm">{t('sidebar.loadingSchema')}</span>
               </div>
             ) : (
               <>
                 {/* Saved Queries */}
                 <Accordion 
-                    title={`Saved Queries (${queries.length})`}
+                    title={`${t('sidebar.savedQueries')} (${queries.length})`}
                     isOpen={queriesOpen} 
                     onToggle={() => setQueriesOpen(!queriesOpen)}
                 >
                     {queries.length === 0 ? (
-                        <div className="text-center p-2 text-xs text-slate-600 italic">No saved queries</div>
+                        <div className="text-center p-2 text-xs text-slate-600 italic">{t('sidebar.noSavedQueries')}</div>
                     ) : (
                         <div>
                             {queries.map(q => (
@@ -585,7 +591,7 @@ export const Sidebar = () => {
 
                 {/* Tables */}
                 <Accordion 
-                    title={`Tables (${tables.length})`}
+                    title={`${t('sidebar.tables')} (${tables.length})`}
                     isOpen={tablesOpen}
                     onToggle={() => setTablesOpen(!tablesOpen)}
                     actions={
@@ -599,7 +605,7 @@ export const Sidebar = () => {
                     }
                 >
                     {tables.length === 0 ? (
-                        <div className="text-center p-2 text-xs text-slate-600 italic">No tables found</div>
+                        <div className="text-center p-2 text-xs text-slate-600 italic">{t('sidebar.noTables')}</div>
                     ) : (
                         <div>
                             {tables.map(table => (
@@ -611,26 +617,26 @@ export const Sidebar = () => {
                                     onContextMenu={handleContextMenu}
                                     connectionId={activeConnectionId!}
                                     driver={activeDriver!}
-                                    onAddColumn={(t) => setModifyColumnModal({ isOpen: true, tableName: t, column: null })}
-                                    onEditColumn={(t, c) => setModifyColumnModal({ isOpen: true, tableName: t, column: c })}
-                                    onAddIndex={(t) => setCreateIndexModal({ isOpen: true, tableName: t })}
-                                    onDropIndex={async (t, name) => {
-                                        if (await ask(`Delete index "${name}"?`, { title: 'Delete Index', kind: 'warning' })) {
-                                            const q = (activeDriver === 'mysql' || activeDriver === 'mariadb') ? `DROP INDEX \`${name}\` ON \`${t}\`` : `DROP INDEX "${name}"`;
+                                    onAddColumn={(t_name) => setModifyColumnModal({ isOpen: true, tableName: t_name, column: null })}
+                                    onEditColumn={(t_name, c) => setModifyColumnModal({ isOpen: true, tableName: t_name, column: c })}
+                                    onAddIndex={(t_name) => setCreateIndexModal({ isOpen: true, tableName: t_name })}
+                                    onDropIndex={async (t_name, name) => {
+                                        if (await ask(t('sidebar.deleteIndexConfirm', { name }), { title: t('sidebar.deleteIndex'), kind: 'warning' })) {
+                                            const q = (activeDriver === 'mysql' || activeDriver === 'mariadb') ? `DROP INDEX \`${name}\` ON \`${t_name}\`` : `DROP INDEX "${name}"`;
                                             await invoke('execute_query', { connectionId: activeConnectionId, query: q }).catch(console.error);
                                             setSchemaVersion(v => v + 1);
                                         }
                                     }}
-                                    onAddForeignKey={(t) => setCreateForeignKeyModal({ isOpen: true, tableName: t })}
-                                    onDropForeignKey={async (t, name) => {
-                                        if (await ask(`Delete foreign key "${name}"?`, { title: 'Delete FK', kind: 'warning' })) {
+                                    onAddForeignKey={(t_name) => setCreateForeignKeyModal({ isOpen: true, tableName: t_name })}
+                                    onDropForeignKey={async (t_name, name) => {
+                                        if (await ask(t('sidebar.deleteFkConfirm', { name }), { title: t('sidebar.deleteFk'), kind: 'warning' })) {
                                             if (activeDriver === 'sqlite') {
-                                                await message('SQLite does not support dropping FKs via ALTER TABLE.', { kind: 'error' });
+                                                await message(t('sidebar.sqliteFkError'), { kind: 'error' });
                                                 return;
                                             }
                                             const q = (activeDriver === 'mysql' || activeDriver === 'mariadb') ? 
-                                                `ALTER TABLE \`${t}\` DROP FOREIGN KEY \`${name}\`` : 
-                                                `ALTER TABLE "${t}" DROP CONSTRAINT "${name}"`;
+                                                `ALTER TABLE \`${t_name}\` DROP FOREIGN KEY \`${name}\`` : 
+                                                `ALTER TABLE "${t_name}" DROP CONSTRAINT "${name}"`;
                                             await invoke('execute_query', { connectionId: activeConnectionId, query: q }).catch(console.error);
                                             setSchemaVersion(v => v + 1);
                                         }
@@ -653,11 +659,11 @@ export const Sidebar = () => {
           <button
             onClick={() => setIsExplorerCollapsed(false)}
             className="text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded-lg p-2 transition-colors group relative"
-            title="Expand Explorer"
+            title={t('sidebar.expandExplorer')}
           >
             <PanelLeft size={20} />
             <span className="absolute left-14 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">
-              Expand Explorer
+              {t('sidebar.expandExplorer')}
             </span>
           </button>
         </div>
@@ -672,7 +678,7 @@ export const Sidebar = () => {
           items={
             contextMenu.type === 'table' ? [
                 {
-                    label: 'Select Top 100',
+                    label: t('sidebar.selectTop100'),
                     icon: PlaySquare,
                     action: () => {
                         const q = getQuote();
@@ -680,7 +686,7 @@ export const Sidebar = () => {
                     }
                 },
                 {
-                    label: 'Count Rows',
+                    label: t('sidebar.countRows'),
                     icon: Hash,
                     action: () => {
                         const q = getQuote();
@@ -688,27 +694,27 @@ export const Sidebar = () => {
                     }
                 },
                 {
-                    label: 'View Schema',
+                    label: t('sidebar.viewSchema'),
                     icon: FileText,
                     action: () => setSchemaModalTable(contextMenu.id)
                 },
                 {
-                    label: 'Copy Name',
+                    label: t('sidebar.copyName'),
                     icon: Copy,
                     action: () => navigator.clipboard.writeText(contextMenu.id)
                 },
                 {
-                    label: 'Add Column',
+                    label: t('sidebar.addColumn'),
                     icon: Plus,
                     action: () => setModifyColumnModal({ isOpen: true, tableName: contextMenu.id, column: null })
                 },
                 {
-                    label: 'Delete Table',
+                    label: t('sidebar.deleteTable'),
                     icon: Trash2,
                     danger: true,
                     action: async () => {
                         const q = getQuote();
-                        if (await ask(`Are you sure you want to delete table "${contextMenu.id}"?`, { title: 'Delete Table', kind: 'warning' })) {
+                        if (await ask(t('sidebar.deleteTableConfirm', { table: contextMenu.id }), { title: t('sidebar.deleteTable'), kind: 'warning' })) {
                             try {
                                 await invoke('execute_query', { 
                                     connectionId: activeConnectionId, 
@@ -717,7 +723,7 @@ export const Sidebar = () => {
                                 if (refreshTables) refreshTables();
                             } catch (e) {
                                 console.error(e);
-                                await message(`Failed to delete table: ${e}`, { kind: 'error' });
+                                await message(t('sidebar.failDeleteTable') + e, { kind: 'error' });
                             }
                         }
                     }
@@ -725,12 +731,12 @@ export const Sidebar = () => {
             ] : 
             contextMenu.type === 'index' ? [
                 {
-                    label: 'Copy Name',
+                    label: t('sidebar.copyName'),
                     icon: Copy,
                     action: () => navigator.clipboard.writeText(contextMenu.id)
                 },
                 {
-                    label: 'Delete Index',
+                    label: t('sidebar.deleteIndex'),
                     icon: Trash2,
                     danger: true,
                     action: async () => {
@@ -740,9 +746,9 @@ export const Sidebar = () => {
                         // Or parse it if we encoded it.
                         // Let's update `showContextMenu` to pass tableName in `data`.
                         if (contextMenu.data && 'tableName' in contextMenu.data) {
-                                            const t = contextMenu.data.tableName;
-                            if (await ask(`Delete index "${contextMenu.id}"?`, { title: 'Delete Index', kind: 'warning' })) {
-                                const q = (activeDriver === 'mysql' || activeDriver === 'mariadb') ? `DROP INDEX \`${contextMenu.id}\` ON \`${t}\`` : `DROP INDEX "${contextMenu.id}"`;
+                                            const t_name = contextMenu.data.tableName;
+                            if (await ask(t('sidebar.deleteIndexConfirm', { name: contextMenu.id }), { title: t('sidebar.deleteIndex'), kind: 'warning' })) {
+                                const q = (activeDriver === 'mysql' || activeDriver === 'mariadb') ? `DROP INDEX \`${contextMenu.id}\` ON \`${t_name}\`` : `DROP INDEX "${contextMenu.id}"`;
                                 await invoke('execute_query', { connectionId: activeConnectionId, query: q }).catch(console.error);
                             }
                         }
@@ -751,25 +757,25 @@ export const Sidebar = () => {
             ] :
             contextMenu.type === 'foreign_key' ? [
                 {
-                    label: 'Copy Name',
+                    label: t('sidebar.copyName'),
                     icon: Copy,
                     action: () => navigator.clipboard.writeText(contextMenu.id)
                 },
                 {
-                    label: 'Delete Foreign Key',
+                    label: t('sidebar.deleteFk'),
                     icon: Trash2,
                     danger: true,
                     action: async () => {
                         if (contextMenu.data && 'tableName' in contextMenu.data) {
-                                            const t = contextMenu.data.tableName;
-                            if (await ask(`Delete foreign key "${contextMenu.id}"?`, { title: 'Delete FK', kind: 'warning' })) {
+                                            const t_name = contextMenu.data.tableName;
+                            if (await ask(t('sidebar.deleteFkConfirm', { name: contextMenu.id }), { title: t('sidebar.deleteFk'), kind: 'warning' })) {
                                 if (activeDriver === 'sqlite') {
-                                    await message('SQLite does not support dropping FKs via ALTER TABLE.', { kind: 'error' });
+                                    await message(t('sidebar.sqliteFkError'), { kind: 'error' });
                                     return;
                                 }
                                 const q = (activeDriver === 'mysql' || activeDriver === 'mariadb') ? 
-                                    `ALTER TABLE \`${t}\` DROP FOREIGN KEY \`${contextMenu.id}\`` : 
-                                    `ALTER TABLE "${t}" DROP CONSTRAINT "${contextMenu.id}"`;
+                                    `ALTER TABLE \`${t_name}\` DROP FOREIGN KEY \`${contextMenu.id}\`` : 
+                                    `ALTER TABLE "${t_name}" DROP CONSTRAINT "${contextMenu.id}"`;
                                 await invoke('execute_query', { connectionId: activeConnectionId, query: q }).catch(console.error);
                             }
                         }
@@ -778,7 +784,7 @@ export const Sidebar = () => {
             ] :
             contextMenu.type === 'folder_indexes' ? [
                 {
-                    label: 'Add Index',
+                    label: t('sidebar.deleteIndex'), // Wait, folder?
                     icon: Plus,
                     action: () => {
                         if (contextMenu.data && 'tableName' in contextMenu.data) {
@@ -789,7 +795,7 @@ export const Sidebar = () => {
             ] :
             contextMenu.type === 'folder_fks' ? [
                 {
-                    label: 'Add Foreign Key',
+                    label: t('sidebar.deleteFk'), // Wait, folder?
                     icon: Plus,
                     action: () => {
                         if (contextMenu.data && 'tableName' in contextMenu.data) {
@@ -801,7 +807,7 @@ export const Sidebar = () => {
             [
                 // Saved Query Actions (Default fallback)
                 {
-                    label: 'Execute',
+                    label: t('sidebar.execute'),
                     icon: Play,
                     action: () => {
                         if (contextMenu.data && 'sql' in contextMenu.data) {
@@ -810,7 +816,7 @@ export const Sidebar = () => {
                     }
                 },
                 {
-                    label: 'Edit',
+                    label: t('sidebar.edit'),
                     icon: Edit,
                     action: () => {
                          if (contextMenu.data && 'sql' in contextMenu.data) {
@@ -819,11 +825,11 @@ export const Sidebar = () => {
                     }
                 },
                 {
-                    label: 'Delete',
+                    label: t('sidebar.delete'),
                     icon: Trash2,
                     action: async () => {
-                        const confirmed = await ask(`Are you sure you want to delete "${contextMenu.label}"?`, {
-                            title: 'Confirm Delete',
+                        const confirmed = await ask(t('sidebar.confirmDeleteQuery', { name: contextMenu.label }), {
+                            title: t('sidebar.confirmDeleteTitle'),
                             kind: 'warning'
                         });
                         if (confirmed) {

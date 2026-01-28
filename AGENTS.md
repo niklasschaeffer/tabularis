@@ -303,3 +303,16 @@ Adhere to the rules defined in the [rules directory](./.rules/):
     - **Persistence:** Changed localStorage key to `tabularis_settings`.
     - **Security:** Updated keychain service name to `tabularis`.
     - **Docs:** Updated `README.md` and branding references.
+
+### Session 26: Internationalization (i18n)
+- **Status:** Feature Complete.
+- **Actions:**
+    - **Framework:** Integrated `i18next` and `react-i18next`.
+    - **Locales:** Added support for **English** (default/fallback) and **Italian**.
+    - **System Detection:** Implemented automatic language detection using browser/system settings.
+    - **Manual Override:** Added a **Language** setting in the Settings page that takes precedence over system language.
+    - **Translation:** Full coverage of Sidebar, Connections, Editor, Settings, and all CRUD modals (Create Table, Modify Column, Create Index, Foreign Keys).
+    - **Dynamic Content:** Added support for interpolated translations (e.g., "Editing: table_name", "Delete column \"col\" from \"table\"").
+    - **Breaking Change Note:** Documented configuration directory move in README.
+
+

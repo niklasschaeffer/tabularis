@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   useReactTable,
   getCoreRowModel,
@@ -21,6 +22,7 @@ interface DataGridProps {
 }
 
 export const DataGrid = ({ columns, data, tableName, pkColumn, connectionId, onRefresh }: DataGridProps) => {
+  const { t } = useTranslation();
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; row: unknown[] } | null>(null);
   const [editingCell, setEditingCell] = useState<{ rowIndex: number; colIndex: number; value: unknown } | null>(null);
   const [selectedRowIndices, setSelectedRowIndices] = useState<Set<number>>(new Set());
@@ -116,7 +118,7 @@ export const DataGrid = ({ columns, data, tableName, pkColumn, connectionId, onR
         if (onRefresh) onRefresh();
     } catch (e) {
         console.error('Update failed:', e);
-        await message('Update failed: ' + e, { title: 'Error', kind: 'error' });
+        await message(t('dataGrid.updateFailed') + e, { title: t('common.error'), kind: 'error' });
     }
     setEditingCell(null);
   };
@@ -138,14 +140,14 @@ export const DataGrid = ({ columns, data, tableName, pkColumn, connectionId, onR
         header: () => colName,
         cell: info => {
           const val = info.getValue();
-          if (val === null) return <span className="text-slate-500 italic">null</span>;
+          if (val === null) return <span className="text-slate-500 italic">{t('dataGrid.null')}</span>;
           if (typeof val === 'boolean') return val ? 'true' : 'false';
           if (typeof val === 'object') return JSON.stringify(val);
           return String(val);
         }
       })
     ),
-    [columns, columnHelper]
+    [columns, columnHelper, t]
   );
 
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -168,7 +170,7 @@ export const DataGrid = ({ columns, data, tableName, pkColumn, connectionId, onR
     const pkIndex = columns.indexOf(pkColumn);
     const pkVal = contextMenu.row[pkIndex];
 
-    const confirmed = await ask('Are you sure you want to delete this row?', { title: 'Delete Row', kind: 'warning' });
+    const confirmed = await ask(t('dataGrid.confirmDelete'), { title: t('dataGrid.deleteTitle'), kind: 'warning' });
     if (confirmed) {
         try {
           await invoke('delete_record', {
@@ -180,7 +182,7 @@ export const DataGrid = ({ columns, data, tableName, pkColumn, connectionId, onR
           if (onRefresh) onRefresh();
         } catch (e) {
           console.error('Delete failed:', e);
-          await message('Failed to delete row: ' + e, { title: 'Error', kind: 'error' });
+          await message(t('dataGrid.deleteFailed') + e, { title: t('common.error'), kind: 'error' });
         }
     }
   };
@@ -188,7 +190,7 @@ export const DataGrid = ({ columns, data, tableName, pkColumn, connectionId, onR
   if (columns.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-slate-500">
-        No data to display
+        {t('dataGrid.noData')}
       </div>
     );
   }
@@ -276,12 +278,12 @@ export const DataGrid = ({ columns, data, tableName, pkColumn, connectionId, onR
           onClose={() => setContextMenu(null)}
           items={[
             {
-              label: 'Edit Row',
+              label: t('dataGrid.editRow'),
               icon: Edit,
               action: () => setEditRowModalData(contextMenu.row)
             },
             {
-              label: 'Delete Row',
+              label: t('dataGrid.deleteRow'),
               icon: Trash2,
               danger: true,
               action: deleteRow

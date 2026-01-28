@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Loader2 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useDatabase } from '../../hooks/useDatabase';
@@ -28,6 +29,7 @@ interface EditRowModalProps {
 }
 
 export const EditRowModal = ({ isOpen, onClose, tableName, pkColumn, rowData, columns, onSaveSuccess }: EditRowModalProps) => {
+  const { t } = useTranslation();
   const { activeConnectionId, activeDriver } = useDatabase();
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [tableSchema, setTableSchema] = useState<TableColumn[]>([]);
@@ -95,9 +97,12 @@ export const EditRowModal = ({ isOpen, onClose, tableName, pkColumn, rowData, co
             // Fetch options
             fks.forEach(fk => fetchFkOptions(fk));
         })
-        .catch(err => console.error('Failed to load schema for edit:', err));
+        .catch(err => {
+            console.error('Failed to load schema for edit:', err);
+            setError(t('editRow.failLoad'));
+        });
     }
-  }, [isOpen, activeConnectionId, tableName, fetchFkOptions]);
+  }, [isOpen, activeConnectionId, tableName, fetchFkOptions, t]);
 
   // Initialize form data from rowData
   useEffect(() => {
@@ -186,7 +191,7 @@ export const EditRowModal = ({ isOpen, onClose, tableName, pkColumn, rowData, co
       onClose();
     } catch (err) {
       console.error('Update failed:', err);
-      setError('Failed to update row: ' + String(err));
+      setError(t('editRow.failUpdate') + String(err));
     } finally {
       setLoading(false);
     }
@@ -200,7 +205,7 @@ export const EditRowModal = ({ isOpen, onClose, tableName, pkColumn, rowData, co
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="bg-slate-800 rounded-lg shadow-xl w-[600px] border border-slate-700 flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between p-4 border-b border-slate-700">
-          <h2 className="text-lg font-semibold text-white">Edit Row ({tableName})</h2>
+          <h2 className="text-lg font-semibold text-white">{t('editRow.title')} ({tableName})</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white">
             <X size={20} />
           </button>
@@ -243,11 +248,11 @@ export const EditRowModal = ({ isOpen, onClose, tableName, pkColumn, rowData, co
                               paddingRight: `2.5rem`
                             }}
                         >
-                            <option value="">{formData[col] === null ? 'NULL' : (loadingFk[col] ? 'Loading...' : 'Select Value...')}</option>
+                            <option value="">{formData[col] === null ? 'NULL' : (loadingFk[col] ? t('editRow.loading') : t('editRow.selectValue'))}</option>
                             
                             {/* Ensure current value is shown even if not in fetched options */}
                             {formData[col] !== null && formData[col] !== undefined && !fkOptions[col]?.some(o => String(o.value) === String(formData[col])) && (
-                                <option value={String(formData[col])}>{String(formData[col])} (Current)</option>
+                                <option value={String(formData[col])}>{String(formData[col])} ({t('editRow.current')})</option>
                             )}
 
                             {fkOptions[col]?.length > 0 ? (
@@ -257,7 +262,7 @@ export const EditRowModal = ({ isOpen, onClose, tableName, pkColumn, rowData, co
                                     </option>
                                 ))
                             ) : (
-                                !loadingFk[col] && <option value="" disabled>{fkErrors[col] ? `Error: ${fkErrors[col]}` : 'No options found'}</option>
+                                !loadingFk[col] && <option value="" disabled>{fkErrors[col] ? `Error: ${fkErrors[col]}` : t('editRow.noOptions')}</option>
                             )}
                         </select>
                         {loadingFk[col] && <Loader2 size={12} className="absolute right-10 top-1/2 -translate-y-1/2 animate-spin text-slate-500" />}
@@ -284,7 +289,7 @@ export const EditRowModal = ({ isOpen, onClose, tableName, pkColumn, rowData, co
             onClick={onClose}
             className="px-4 py-2 text-slate-300 hover:text-white font-medium text-sm"
           >
-            Cancel
+            {t('editRow.cancel')}
           </button>
           <button 
             onClick={handleSave}
@@ -292,7 +297,7 @@ export const EditRowModal = ({ isOpen, onClose, tableName, pkColumn, rowData, co
             className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded font-medium text-sm flex items-center gap-2"
           >
             {loading && <Loader2 size={16} className="animate-spin" />}
-            Save Changes
+            {t('editRow.save')}
           </button>
         </div>
       </div>

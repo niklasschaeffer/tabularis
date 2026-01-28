@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { X, Check, AlertCircle, Loader2 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import clsx from "clsx";
@@ -41,6 +42,7 @@ export const NewConnectionModal = ({
   onSave,
   initialConnection,
 }: NewConnectionModalProps) => {
+  const { t } = useTranslation();
   const [driver, setDriver] = useState<Driver>("postgres");
   const [name, setName] = useState("");
   const [formData, setFormData] = useState<Partial<ConnectionParams>>({
@@ -143,7 +145,7 @@ export const NewConnectionModal = ({
   const saveConnection = async () => {
     if (!name.trim()) {
       setStatus("error");
-      setMessage("Connection name is required");
+      setMessage(t("newConnection.nameRequired"));
       return;
     }
 
@@ -174,12 +176,12 @@ export const NewConnectionModal = ({
       onClose();
     } catch (err) {
       setStatus("error");
-      setMessage(typeof err === "string" ? err : "Failed to save connection");
+      setMessage(typeof err === "string" ? err : t("newConnection.failSave"));
     }
   };
 
   const InputClass =
-    "w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500 mt-1";
+    "w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500 mt-1 text-sm";
   const LabelClass = "block text-xs text-slate-400 font-medium mt-3";
 
   return (
@@ -187,7 +189,9 @@ export const NewConnectionModal = ({
       <div className="bg-slate-800 rounded-lg shadow-xl w-[500px] border border-slate-700 flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-slate-700">
-          <h2 className="text-lg font-semibold text-white">New Connection</h2>
+          <h2 className="text-lg font-semibold text-white">
+            {initialConnection ? t("newConnection.titleEdit") : t("newConnection.titleNew")}
+          </h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white">
             <X size={20} />
           </button>
@@ -196,18 +200,18 @@ export const NewConnectionModal = ({
         {/* Body */}
         <div className="p-6 overflow-y-auto">
           <div>
-            <label className={LabelClass}>Connection Name</label>
+            <label className={LabelClass}>{t("newConnection.name")}</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               className={InputClass}
-              placeholder="My Production DB"
+              placeholder={t("newConnection.namePlaceholder")}
               autoFocus
             />
           </div>
 
           <div>
-            <label className={LabelClass}>Database Type</label>
+            <label className={LabelClass}>{t("newConnection.dbType")}</label>
             <div className="flex gap-2 mt-1">
               {(["postgres", "mysql", "sqlite"] as Driver[]).map((d) => (
                 <button
@@ -229,7 +233,7 @@ export const NewConnectionModal = ({
           {driver !== "sqlite" && (
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-2">
-                <label className={LabelClass}>Host</label>
+                <label className={LabelClass}>{t("newConnection.host")}</label>
                 <input
                   value={formData.host}
                   onChange={(e) => updateField("host", e.target.value)}
@@ -237,7 +241,7 @@ export const NewConnectionModal = ({
                 />
               </div>
               <div>
-                <label className={LabelClass}>Port</label>
+                <label className={LabelClass}>{t("newConnection.port")}</label>
                 <input
                   type="number"
                   value={formData.port}
@@ -251,7 +255,7 @@ export const NewConnectionModal = ({
           {driver !== "sqlite" && (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className={LabelClass}>Username</label>
+                <label className={LabelClass}>{t("newConnection.username")}</label>
                 <input
                   value={formData.username}
                   onChange={(e) => updateField("username", e.target.value)}
@@ -259,7 +263,7 @@ export const NewConnectionModal = ({
                 />
               </div>
               <div>
-                <label className={LabelClass}>Password</label>
+                <label className={LabelClass}>{t("newConnection.password")}</label>
                 <input
                   type="password"
                   value={formData.password || ""}
@@ -270,12 +274,12 @@ export const NewConnectionModal = ({
                       !formData.password &&
                       "border-amber-500/50",
                   )}
-                  placeholder="Enter password"
+                  placeholder={t("newConnection.passwordPlaceholder")}
                 />
                 {formData.save_in_keychain && !formData.password && (
                   <p className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">
                     <AlertCircle size={10} />
-                    Password missing or not set. Please re-enter.
+                    {t("newConnection.passwordMissing")}
                   </p>
                 )}
               </div>
@@ -284,7 +288,7 @@ export const NewConnectionModal = ({
 
           <div>
             <label className={LabelClass}>
-              {driver === "sqlite" ? "File Path" : "Database Name"}
+              {driver === "sqlite" ? t("newConnection.filePath") : t("newConnection.dbName")}
             </label>
             <input
               value={formData.database}
@@ -292,8 +296,8 @@ export const NewConnectionModal = ({
               className={InputClass}
               placeholder={
                 driver === "sqlite"
-                  ? "/absolute/path/to/db.sqlite"
-                  : "my_database"
+                  ? t("newConnection.filePathPlaceholder")
+                  : t("newConnection.dbNamePlaceholder")
               }
             />
           </div>
@@ -318,7 +322,7 @@ export const NewConnectionModal = ({
                   htmlFor="ssh-toggle"
                   className="text-sm font-semibold text-slate-300 cursor-pointer select-none"
                 >
-                  Use SSH Tunnel
+                  {t("newConnection.useSsh")}
                 </label>
               </div>
 
@@ -326,7 +330,7 @@ export const NewConnectionModal = ({
                 <div className="space-y-4 pl-3 border-l-2 border-slate-800 ml-1">
                   <div className="grid grid-cols-3 gap-4">
                     <div className="col-span-2">
-                      <label className={LabelClass}>SSH Host</label>
+                      <label className={LabelClass}>{t("newConnection.sshHost")}</label>
                       <input
                         value={formData.ssh_host || ""}
                         onChange={(e) =>
@@ -337,7 +341,7 @@ export const NewConnectionModal = ({
                       />
                     </div>
                     <div>
-                      <label className={LabelClass}>SSH Port</label>
+                      <label className={LabelClass}>{t("newConnection.sshPort")}</label>
                       <input
                         type="number"
                         value={formData.ssh_port || 22}
@@ -351,7 +355,7 @@ export const NewConnectionModal = ({
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className={LabelClass}>SSH User</label>
+                      <label className={LabelClass}>{t("newConnection.sshUser")}</label>
                       <input
                         value={formData.ssh_user || ""}
                         onChange={(e) =>
@@ -362,7 +366,7 @@ export const NewConnectionModal = ({
                       />
                     </div>
                     <div>
-                      <label className={LabelClass}>SSH Password</label>
+                      <label className={LabelClass}>{t("newConnection.sshPassword")}</label>
                       <input
                         type="password"
                         value={formData.ssh_password || ""}
@@ -375,12 +379,12 @@ export const NewConnectionModal = ({
                             !formData.ssh_password &&
                             "border-amber-500/50",
                         )}
-                        placeholder="Enter SSH password"
+                        placeholder={t("newConnection.sshPasswordPlaceholder")}
                       />
                       {formData.save_in_keychain && !formData.ssh_password && (
                         <p className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">
                           <AlertCircle size={10} />
-                          SSH Password missing. Please re-enter.
+                          {t("newConnection.sshPasswordMissing")}
                         </p>
                       )}
                     </div>
@@ -388,7 +392,7 @@ export const NewConnectionModal = ({
 
                   <div>
                     <label className={LabelClass}>
-                      SSH Key File (Optional)
+                      {t("newConnection.sshKeyFile")}
                     </label>
                     <input
                       value={formData.ssh_key_file || ""}
@@ -396,7 +400,7 @@ export const NewConnectionModal = ({
                         updateField("ssh_key_file", e.target.value)
                       }
                       className={InputClass}
-                      placeholder="/path/to/id_rsa"
+                      placeholder={t("newConnection.sshKeyFilePlaceholder")}
                     />
                   </div>
                 </div>
@@ -418,7 +422,7 @@ export const NewConnectionModal = ({
               htmlFor="keychain-toggle"
               className="text-sm font-medium text-slate-300 cursor-pointer select-none"
             >
-              Save passwords in Keychain
+              {t("newConnection.saveKeychain")}
             </label>
           </div>
 
@@ -452,7 +456,7 @@ export const NewConnectionModal = ({
             {status === "testing" && (
               <Loader2 size={16} className="animate-spin" />
             )}
-            Test Connection
+            {t("newConnection.testConnection")}
           </button>
           <button
             onClick={saveConnection}
@@ -462,7 +466,7 @@ export const NewConnectionModal = ({
             {status === "saving" && (
               <Loader2 size={16} className="animate-spin" />
             )}
-            Save
+            {t("newConnection.save")}
           </button>
         </div>
       </div>

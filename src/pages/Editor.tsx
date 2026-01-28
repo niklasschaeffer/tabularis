@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   Play,
   Plus,
@@ -63,6 +64,7 @@ interface EditorState {
 }
 
 export const Editor = () => {
+  const { t } = useTranslation();
   const { activeConnectionId } = useDatabase();
   const { settings } = useSettings();
   const { saveQuery } = useSavedQueries();
@@ -211,12 +213,12 @@ export const Editor = () => {
         if (tableName) fetchPkColumn(tableName, targetTabId);
       } catch (err) {
         updateTab(targetTabId, {
-          error: typeof err === "string" ? err : "Query failed.",
+          error: typeof err === "string" ? err : t("editor.queryFailed"),
           isLoading: false,
         });
       }
     },
-    [activeConnectionId, updateTab, settings.queryLimit, fetchPkColumn],
+    [activeConnectionId, updateTab, settings.queryLimit, fetchPkColumn, t],
   );
 
   const handleRunButton = useCallback(() => {
@@ -291,7 +293,7 @@ export const Editor = () => {
       const { initialQuery: sql, tableName: table, queryName } = state;
       const tabId = addTab({
         type: table ? "table" : "console",
-        title: queryName || table || "Console",
+        title: queryName || table || (table ? table : t("sidebar.newConsole")),
         query: sql,
         activeTable: table,
       });
@@ -310,6 +312,7 @@ export const Editor = () => {
     addTab,
     navigate,
     runQuery,
+    t,
   ]);
 
   const startResize = () => {
@@ -400,16 +403,16 @@ export const Editor = () => {
         <Database size={48} className="mb-4 opacity-20" />
         {activeConnectionId ? (
           <div className="text-center">
-            <p className="mb-4">No open tabs for this connection.</p>
+            <p className="mb-4">{t("editor.noTabs")}</p>
             <button
               onClick={() => addTab({ type: "console" })}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
             >
-              New Console
+              {t("editor.newConsole")}
             </button>
           </div>
         ) : (
-          <p>No active session. Please select a connection.</p>
+          <p>{t("editor.noActiveSession")}</p>
         )}
       </div>
     );
@@ -466,14 +469,14 @@ export const Editor = () => {
         <button
           onClick={() => addTab({ type: "console" })}
           className="flex items-center justify-center w-9 h-full text-slate-500 hover:text-white hover:bg-slate-800 border-l border-slate-800 transition-colors shrink-0"
-          title="New Console"
+          title={t("editor.newConsole")}
         >
           <Plus size={16} />
         </button>
         <button
           onClick={() => addTab({ type: "query_builder" })}
           className="flex items-center justify-center w-9 h-full text-purple-500 hover:text-white hover:bg-slate-800 border-l border-slate-800 transition-colors shrink-0"
-          title="New Visual Query"
+          title={t("editor.newVisualQuery")}
         >
           <Network size={16} />
         </button>
@@ -486,7 +489,7 @@ export const Editor = () => {
             onClick={stopQuery}
             className="flex items-center gap-2 px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white rounded text-sm font-medium"
           >
-            <Square size={16} fill="currentColor" /> Stop
+            <Square size={16} fill="currentColor" /> {t("editor.stop")}
           </button>
         ) : (
           <div className="flex items-center rounded bg-green-700 relative">
@@ -495,7 +498,7 @@ export const Editor = () => {
               disabled={!activeConnectionId}
               className="flex items-center gap-2 px-3 py-1.5 text-white rounded-l text-sm font-medium disabled:opacity-50 hover:bg-green-600"
             >
-              <Play size={16} fill="currentColor" /> Run
+              <Play size={16} fill="currentColor" /> {t("editor.run")}
             </button>
             <div className="h-5 w-[1px] bg-green-800"></div>
             <button
@@ -515,7 +518,7 @@ export const Editor = () => {
                 <div className="absolute top-full left-0 mt-1 w-80 bg-slate-800 border border-slate-700 rounded shadow-xl z-50 flex flex-col py-1 max-h-80 overflow-y-auto">
                   {dropdownQueries.length === 0 ? (
                     <div className="px-4 py-2 text-xs text-slate-500 italic">
-                      No valid queries found
+                      {t("editor.noValidQueries")}
                     </div>
                   ) : (
                     dropdownQueries.map((q, i) => (
@@ -540,7 +543,7 @@ export const Editor = () => {
                             setSaveQueryModal({ isOpen: true, sql: q });
                           }}
                           className="p-2 text-slate-500 hover:text-white hover:bg-slate-600 transition-colors mr-1 rounded shrink-0 opacity-0 group-hover:opacity-100"
-                          title="Save this query"
+                          title={t("editor.saveThisQuery")}
                         >
                           <Save size={14} />
                         </button>
@@ -559,7 +562,7 @@ export const Editor = () => {
             disabled={!activeTab.result || activeTab.result.rows.length === 0}
             className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-sm font-medium disabled:opacity-50 border border-slate-700"
           >
-            <Download size={16} /> Export
+            <Download size={16} /> {t("editor.export")}
           </button>
           {exportMenuOpen && (
             <>
@@ -585,7 +588,7 @@ export const Editor = () => {
           )}
         </div>
         <span className="text-xs text-slate-500 ml-2">
-          {activeConnectionId ? "Connected" : "Disconnected"}
+          {activeConnectionId ? t("editor.connected") : t("editor.disconnected")}
         </span>
         {activeTab.activeTable && activeTab.pkColumn && (
           <div className="ml-auto flex items-center gap-3">
@@ -593,10 +596,10 @@ export const Editor = () => {
               onClick={() => setShowNewRowModal(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-medium"
             >
-              <Plus size={16} /> New Row
+              <Plus size={16} /> {t("editor.newRow")}
             </button>
             <span className="text-xs text-blue-400 border border-blue-900 bg-blue-900/20 px-2 py-0.5 rounded shrink-0">
-              Editing: {activeTab.activeTable}
+              {t("editor.editing", { table: activeTab.activeTable })}
             </span>
           </div>
         )}
@@ -659,7 +662,7 @@ export const Editor = () => {
                 <div className="p-2 bg-slate-900 text-xs text-slate-400 border-b border-slate-800 flex justify-between items-center shrink-0">
                   <div className="flex items-center gap-4">
                     <span>
-                      {activeTab.result.rows.length} rows retrieved{" "}
+                      {t("editor.rowsRetrieved", { count: activeTab.result.rows.length })}{" "}
                       {activeTab.executionTime !== null && (
                         <span className="text-slate-500 ml-2 font-mono">
                           ({formatDuration(activeTab.executionTime)})
@@ -670,7 +673,7 @@ export const Editor = () => {
                     {activeTab.result.truncated &&
                       activeTab.result.pagination && (
                         <span className="px-2 py-0.5 bg-yellow-900/30 text-yellow-400 rounded text-[10px] font-semibold uppercase tracking-wide border border-yellow-500/30">
-                          Auto paginated
+                          {t("editor.autoPaginated")}
                         </span>
                       )}
                   </div>
@@ -714,7 +717,7 @@ export const Editor = () => {
                             String(activeTab.result!.pagination!.page),
                           );
                         }}
-                        title="Click to jump to page"
+                        title={t("editor.jumpToPage")}
                       >
                         {isEditingPage ? (
                           <input
@@ -748,11 +751,13 @@ export const Editor = () => {
                           />
                         ) : (
                           <>
-                            Page {activeTab.result.pagination.page} of{" "}
-                            {Math.ceil(
-                              activeTab.result.pagination.total_rows /
-                                activeTab.result.pagination.page_size,
-                            )}
+                            {t("editor.pageOf", { 
+                                current: activeTab.result.pagination.page, 
+                                total: Math.ceil(
+                                    activeTab.result.pagination.total_rows /
+                                      activeTab.result.pagination.page_size,
+                                  )
+                            })}
                           </>
                         )}
                       </div>
@@ -812,7 +817,7 @@ export const Editor = () => {
               </div>
             ) : (
               <div className="flex items-center justify-center h-full text-slate-600 text-sm">
-                Execute a query to see results
+                {t("editor.executePrompt")}
               </div>
             )}
           </div>
@@ -855,7 +860,7 @@ export const Editor = () => {
           }
           onSave={async (name, sql) => await saveQuery(name, sql)}
           initialSql={saveQueryModal.sql}
-          title="Save Query"
+          title={t("editor.saveQuery")}
         />
       )}
       {tabContextMenu && (
@@ -865,27 +870,27 @@ export const Editor = () => {
           onClose={() => setTabContextMenu(null)}
           items={[
             {
-              label: "Close Tab",
+              label: t("editor.closeTab"),
               icon: X,
               action: () => closeTab(tabContextMenu.tabId),
             },
             {
-              label: "Close Other Tabs",
+              label: t("editor.closeOthers"),
               icon: XCircle,
               action: () => closeOtherTabs(tabContextMenu.tabId),
             },
             {
-              label: "Close Tabs to Right",
+              label: t("editor.closeRight"),
               icon: ArrowRightToLine,
               action: () => closeTabsToRight(tabContextMenu.tabId),
             },
             {
-              label: "Close Tabs to Left",
+              label: t("editor.closeLeft"),
               icon: ArrowLeftToLine,
               action: () => closeTabsToLeft(tabContextMenu.tabId),
             },
             {
-              label: "Close All Tabs",
+              label: t("editor.closeAll"),
               icon: Trash2,
               danger: true,
               action: () => closeAllTabs(),

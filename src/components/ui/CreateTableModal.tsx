@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Plus, Trash2, Save, Code, Loader2 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useDatabase } from '../../hooks/useDatabase';
@@ -26,6 +27,7 @@ interface CreateTableModalProps {
 }
 
 export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModalProps) => {
+  const { t } = useTranslation();
   const { activeConnectionId, activeDriver } = useDatabase();
   
   const [tableName, setTableName] = useState('');
@@ -40,8 +42,8 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
   const currentDriver = activeDriver || 'sqlite';
 
   const sqlPreview = useMemo(() => {
-    if (!tableName.trim()) return '-- Table name is required';
-    if (columns.length === 0) return '-- At least one column is required';
+    if (!tableName.trim()) return '-- ' + t('createTable.nameRequired');
+    if (columns.length === 0) return '-- ' + t('createTable.colRequired');
 
     const driver = currentDriver;
     let sql = `CREATE TABLE ${driver === 'postgres' ? `"${tableName}"` : `\`${tableName}\``} (\n`;
@@ -100,7 +102,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
 
     sql += '\n);';
     return sql;
-  }, [tableName, columns, currentDriver]);
+  }, [tableName, columns, currentDriver, t]);
 
   const handleAddColumn = () => {
     setColumns([...columns, {
@@ -128,7 +130,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
 
   const handleCreate = async () => {
     if (!tableName.trim()) {
-        setError('Table name is required');
+        setError(t('createTable.nameRequired'));
         return;
     }
     setLoading(true);
@@ -146,7 +148,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
         setColumns([{ id: '1', name: 'id', type: 'INTEGER', length: '', isPk: true, isNullable: false, isAutoInc: true, defaultValue: '' }]);
     } catch (e: unknown) {
         console.error(e);
-        setError('Failed to create table: ' + (e instanceof Error ? e.message : String(e)));
+        setError(t('createTable.failCreate') + (e instanceof Error ? e.message : String(e)));
     } finally {
         setLoading(false);
     }
@@ -164,7 +166,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
                 <Plus className="text-blue-400" size={20} />
              </div>
              <div>
-                <h2 className="text-lg font-bold text-white">Create New Table</h2>
+                <h2 className="text-lg font-bold text-white">{t('createTable.title')}</h2>
                 <p className="text-xs text-slate-400 font-mono">{currentDriver.toUpperCase()}</p>
              </div>
           </div>
@@ -178,12 +180,12 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
             
             {/* Table Name */}
             <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase tracking-wider">Table Name</label>
+                <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase tracking-wider">{t('createTable.tableName')}</label>
                 <input 
                     value={tableName}
                     onChange={(e) => setTableName(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-mono"
-                    placeholder="e.g. users, orders, products"
+                    placeholder={t('createTable.tableNamePlaceholder')}
                     autoFocus
                 />
             </div>
@@ -191,9 +193,9 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
             {/* Columns Grid */}
             <div className="flex-1 flex flex-col min-h-0 border border-slate-700 rounded-lg bg-slate-950/50 overflow-hidden">
                 <div className="bg-slate-900/80 p-2 border-b border-slate-700 flex items-center justify-between">
-                    <h3 className="text-sm font-medium text-slate-300">Columns</h3>
+                    <h3 className="text-sm font-medium text-slate-300">{t('createTable.columns')}</h3>
                     <button onClick={handleAddColumn} className="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white px-2 py-1 rounded flex items-center gap-1 transition-colors">
-                        <Plus size={12} /> Add Column
+                        <Plus size={12} /> {t('createTable.addColumn')}
                     </button>
                 </div>
                 
@@ -202,13 +204,13 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
                         <thead className="bg-slate-900/50 sticky top-0 z-10">
                             <tr>
                                 <th className="p-2 text-[10px] uppercase text-slate-500 font-semibold w-8"></th>
-                                <th className="p-2 text-[10px] uppercase text-slate-500 font-semibold">Name</th>
-                                <th className="p-2 text-[10px] uppercase text-slate-500 font-semibold w-32">Type</th>
-                                <th className="p-2 text-[10px] uppercase text-slate-500 font-semibold w-20">Len</th>
-                                <th className="p-2 text-[10px] uppercase text-slate-500 font-semibold w-10 text-center" title="Primary Key">PK</th>
-                                <th className="p-2 text-[10px] uppercase text-slate-500 font-semibold w-10 text-center" title="Not Null">NN</th>
-                                <th className="p-2 text-[10px] uppercase text-slate-500 font-semibold w-10 text-center" title="Auto Increment">AI</th>
-                                <th className="p-2 text-[10px] uppercase text-slate-500 font-semibold w-32">Default</th>
+                                <th className="p-2 text-[10px] uppercase text-slate-500 font-semibold">{t('createTable.colName')}</th>
+                                <th className="p-2 text-[10px] uppercase text-slate-500 font-semibold w-32">{t('createTable.colType')}</th>
+                                <th className="p-2 text-[10px] uppercase text-slate-500 font-semibold w-20">{t('createTable.colLen')}</th>
+                                <th className="p-2 text-[10px] uppercase text-slate-500 font-semibold w-10 text-center" title="Primary Key">{t('createTable.colPk')}</th>
+                                <th className="p-2 text-[10px] uppercase text-slate-500 font-semibold w-10 text-center" title="Not Null">{t('createTable.colNn')}</th>
+                                <th className="p-2 text-[10px] uppercase text-slate-500 font-semibold w-10 text-center" title="Auto Increment">{t('createTable.colAi')}</th>
+                                <th className="p-2 text-[10px] uppercase text-slate-500 font-semibold w-32">{t('createTable.colDefault')}</th>
                                 <th className="p-2 w-8"></th>
                             </tr>
                         </thead>
@@ -306,7 +308,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
                     className="text-xs text-slate-500 hover:text-blue-400 flex items-center gap-2 self-start font-medium"
                 >
                     <Code size={14} />
-                    {showSqlPreview ? 'Hide SQL Preview' : 'Show SQL Preview'}
+                    {showSqlPreview ? t('createTable.hideSql') : t('createTable.showSql')}
                 </button>
                 
                 {showSqlPreview && (
@@ -329,7 +331,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
             onClick={onClose}
             className="px-4 py-2 text-slate-400 hover:text-white font-medium text-sm transition-colors"
           >
-            Cancel
+            {t('createTable.cancel')}
           </button>
           <button 
             onClick={handleCreate}
@@ -337,7 +339,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
             className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all"
           >
             {loading && <Loader2 size={16} className="animate-spin" />}
-            <Save size={16} /> Create Table
+            <Save size={16} /> {t('createTable.create')}
           </button>
         </div>
       </div>
